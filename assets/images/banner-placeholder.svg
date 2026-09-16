@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 300" role="img" aria-label="Banner provisional de Academia Bans">
+  <defs><radialGradient id="g"><stop stop-color="#56306d"/><stop offset="1" stop-color="#160d23"/></radialGradient><pattern id="p" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M30 0 60 30 30 60 0 30Z" fill="none" stroke="#e4c477" stroke-opacity=".12"/></pattern></defs>
+  <rect width="1400" height="300" fill="url(#g)"/><rect width="1400" height="300" fill="url(#p)"/>
+  <text x="700" y="145" fill="#e4c477" text-anchor="middle" font-family="Georgia,serif" font-size="86">Academia Bans</text>
+  <text x="700" y="200" fill="#d8cbdf" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" letter-spacing="7">EL CONOCIMIENTO ES MAGIA</text>
+</svg>

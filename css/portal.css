@@ -1,0 +1,653 @@
+.portal {
+    padding: 28px
+}
+
+.portal-frame {
+    width: min(1180px, 100%);
+    margin: auto;
+    border: 1px solid #a842496e;
+    border-radius: 30px;
+    overflow: hidden;
+    background: #0c0808;
+    box-shadow: 0 30px 90px #000b
+}
+
+.topbar {
+    min-height: 94px;
+    padding: 15px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    background-color: #17090a;
+    background-image: linear-gradient(45deg, #3b0d12 25%, transparent 25%), linear-gradient(-45deg, #3b0d12 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #3b0d12 75%), linear-gradient(-45deg, transparent 75%, #3b0d12 75%);
+    background-size: 42px 42px;
+    background-position: 0 0, 0 21px, 21px -21px, -21px 0
+}
+
+.wordmark {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    font: 500 1.15rem 'Cormorant Garamond', serif;
+    letter-spacing: .08em
+}
+
+.wordmark strong {
+    display: block;
+    color: var(--gold);
+    font-size: 1.7rem;
+    line-height: .8
+}
+
+.crest {
+    display: grid;
+    place-items: center;
+    width: 54px;
+    height: 54px;
+    border: 1px solid var(--gold);
+    border-radius: 50%;
+    color: var(--gold);
+    font-size: 2rem
+}
+
+.main-nav {
+    display: flex;
+    gap: 11px
+}
+
+.main-nav a {
+    min-width: 112px;
+    text-align: center;
+    text-decoration: none;
+    text-transform: lowercase;
+    font: 600 1.15rem 'Cormorant Garamond', serif;
+    letter-spacing: .08em;
+    background: #070509;
+    border: 1px solid #6f292e;
+    border-radius: 999px;
+    padding: .75rem 1rem
+}
+
+.main-nav a:hover,
+.main-nav a.active {
+    color: var(--gold);
+    border-color: var(--gold);
+    box-shadow: inset 0 0 20px #bd222d36
+}
+
+.menu-toggle {
+    display: none;
+    border: 1px solid #7b3035;
+    border-radius: 999px;
+    background: #080505;
+    color: #fff;
+    padding: .7rem 1rem
+}
+
+.banner {
+    position: relative;
+    aspect-ratio: 4.6/1;
+    min-height: 180px;
+    background: linear-gradient(135deg, #4a0d13, #0e0708);
+    overflow: hidden;
+    border-block: 1px solid #74262c
+}
+
+.banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover
+}
+
+.banner-fallback {
+    position: absolute;
+    inset: 0;
+    display: none;
+    place-content: center;
+    text-align: center;
+    background: radial-gradient(circle at center, #5a1118, #130707);
+    color: var(--gold);
+    font: 600 clamp(2.4rem, 7vw, 5rem) 'Cormorant Garamond', serif
+}
+
+.banner-fallback small {
+    display: block;
+    color: #d8cccc;
+    font: 500 .76rem 'DM Sans', sans-serif;
+    letter-spacing: .08em
+}
+
+.portal-body {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    align-items: stretch
+}
+
+.profile-sidebar {
+    padding: 30px 22px;
+    color: #fff;
+    background-color: #090606;
+    background-image: radial-gradient(#5b2227 1.1px, transparent 1.1px);
+    background-size: 13px 13px;
+    border-right: 1px solid #6f272c;
+    text-align: center
+}
+
+.portrait-frame {
+    width: 150px;
+    aspect-ratio: 1;
+    margin: 0 auto 16px;
+    padding: 7px;
+    border: 1px solid var(--gold-dark);
+    border-radius: 50%;
+    background: #250b0e;
+    box-shadow: 0 0 0 5px #0d0708, 0 0 0 6px #792b31
+}
+
+.portrait-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 50%;
+    border-radius: 50%;
+}
+
+.profile-sidebar h2 {
+    font: 600 1.8rem 'Cormorant Garamond', serif;
+    margin: .5rem 0 0
+}
+
+.member-meta {
+    font-size: .8rem;
+    color: var(--muted);
+    margin: .15rem 0
+}
+
+.divider {
+    color: var(--gold);
+    margin: 20px 0
+}
+
+.quick-links {
+    border-top: 1px solid #572125
+}
+
+.quick-links a {
+    display: flex;
+    justify-content: space-between;
+    text-decoration: none;
+    padding: .85rem .35rem;
+    border-bottom: 1px solid #572125;
+    font: 600 1.05rem 'Cormorant Garamond', serif
+}
+
+.quick-links a:hover,
+.quick-links a.active {
+    color: var(--gold);
+    padding-left: .7rem
+}
+
+.house-page {
+    --house-color: #a9b4d7;
+    --house-soft: #e6e9f4;
+    display: grid;
+    gap: 28px
+}
+
+.house-page[data-house="concordia"] { --house-color: #c72635; --house-soft: #f7dfe2 }
+.house-page[data-house="divitiae"] { --house-color: #a87813; --house-soft: #f5e9c8 }
+.house-page[data-house="fatum"] { --house-color: #38784a; --house-soft: #dcecdf }
+.house-page[data-house="virtus"] { --house-color: #344d86; --house-soft: #e0e5f2 }
+
+.house-heading .ornament {
+    color: #aa2029;
+    font-size: 2rem
+}
+
+.house-lore-card {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    align-items: center;
+    gap: 26px;
+    overflow: hidden;
+    padding: 28px;
+    border: 1px solid #d5bfc0;
+    border-radius: 22px;
+    background: linear-gradient(135deg, var(--house-soft), #fff 72%);
+    box-shadow: 0 16px 35px #4d111611
+}
+
+.house-great-symbol {
+    display: grid;
+    place-items: center;
+    width: 130px;
+    height: 130px;
+    border: 1px solid color-mix(in srgb, var(--house-color) 55%, white);
+    border-radius: 50%;
+    background: #fff9;
+    color: var(--house-color);
+    font: 600 5rem 'Cormorant Garamond', serif
+}
+
+.house-lore-card h2 {
+    margin: .15rem 0 .55rem;
+    color: var(--house-color);
+    font: 600 2rem 'Cormorant Garamond', serif
+}
+
+.house-lore-card p:last-child {
+    margin: 0;
+    line-height: 1.75
+}
+
+.house-members-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #d8c4c5
+}
+
+.house-members-heading h2 {
+    margin: .1rem 0 0;
+    font: 600 2rem 'Cormorant Garamond', serif
+}
+
+.house-members-heading>span {
+    color: #7b6869;
+    font-size: .82rem
+}
+
+.house-members-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    gap: 18px
+}
+
+.house-person {
+    padding: 20px 12px;
+    border: 1px solid #d7c4c5;
+    border-radius: 18px;
+    background: #fff;
+    text-align: center;
+    box-shadow: 0 10px 25px #4d11160d
+}
+
+.house-person img {
+    width: 94px;
+    height: 94px;
+    object-fit: cover;
+    object-position: center;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    outline: 2px solid var(--house-color);
+    background: #eee
+}
+
+.house-person h3 {
+    margin: 13px 0 2px;
+    font: 600 1.35rem 'Cormorant Garamond', serif
+}
+
+.house-person p {
+    margin: 0;
+    color: #786667;
+    font-size: .8rem
+}
+
+.empty-house,
+.house-members-empty {
+    padding: 42px 20px;
+    border: 1px dashed #c7adaf;
+    border-radius: 18px;
+    text-align: center
+}
+
+.empty-house span {
+    color: #a31e27;
+    font-size: 3rem
+}
+
+.sidebar-button,
+.logout-button {
+    width: 100%;
+    border-radius: 999px;
+    padding: .75rem 1rem
+}
+
+.sidebar-button {
+    margin-top: 25px;
+    border: 1px solid var(--gold-dark);
+    background: #260b0e;
+    color: var(--gold)
+}
+
+.logout-button {
+    margin-top: 10px;
+    border: 0;
+    background: transparent;
+    color: #b4a4a4
+}
+
+.content-panel {
+    position: relative;
+    min-width: 0;
+    padding: clamp(28px, 5vw, 54px);
+    background-color: var(--paper);
+    background-image: radial-gradient(#ccbcbc52 1px, transparent 1px);
+    background-size: 18px 18px;
+    color: var(--paper-ink)
+}
+
+.content-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 10px;
+    background: linear-gradient(135deg, #1c090b 25%, transparent 25%) -10px 0/20px 20px, linear-gradient(225deg, #1c090b 25%, transparent 25%) -10px 0/20px 20px
+}
+
+.page-heading {
+    text-align: center;
+    margin-bottom: 2rem
+}
+
+.page-heading .kicker {
+    color: #9a252d
+}
+
+.page-heading h1 {
+    font: 600 clamp(2.6rem, 6vw, 4.2rem) 'Cormorant Garamond', serif;
+    margin: .1rem 0
+}
+
+.page-heading p {
+    max-width: 650px;
+    margin: auto;
+    color: #746466
+}
+
+.ornament {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #a91d26
+}
+
+.ornament::before,
+.ornament::after {
+    content: "";
+    height: 1px;
+    flex: 1;
+    background: #c3afb0
+}
+
+.content-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px
+}
+
+.feature-card,
+.paper-card {
+    border: 1px solid #d0bcbc;
+    border-radius: 18px;
+    background: #ffffffd8;
+    padding: 24px;
+    box-shadow: 0 15px 32px #4d111610
+}
+
+.feature-card h2,
+.paper-card h2 {
+    font: 600 1.7rem 'Cormorant Garamond', serif;
+    margin: .1rem 0 .4rem
+}
+
+.feature-card p,
+.paper-card p {
+    color: #766668
+}
+
+.feature-card a,
+.route-card {
+    display: inline-flex;
+    margin-top: 12px;
+    color: #a51f28;
+    font-weight: 700;
+    text-decoration: none;
+    border-bottom: 1px solid
+}
+
+.rule-list {
+    padding: 0;
+    list-style: none;
+    counter-reset: rule
+}
+
+.rule-list li {
+    counter-increment: rule;
+    position: relative;
+    padding: 16px 16px 16px 58px;
+    border-bottom: 1px solid #d8c7c7
+}
+
+.rule-list li::before {
+    content: counter(rule, decimal-leading-zero);
+    position: absolute;
+    left: 8px;
+    color: #ad252e;
+    font: 600 1.25rem 'Cormorant Garamond', serif
+}
+
+.soon {
+    min-height: 390px;
+    display: grid;
+    place-content: center;
+    text-align: center
+}
+
+.soon span {
+    font-size: 3rem;
+    color: #b01f29
+}
+
+.soon h1 {
+    font: 600 3.8rem 'Cormorant Garamond', serif;
+    margin: .2rem
+}
+
+.schedule {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff
+}
+
+.schedule th,
+.schedule td {
+    padding: 13px;
+    border: 1px solid #d9c6c6;
+    text-align: left
+}
+
+.schedule th {
+    background: #2d0a0e;
+    color: #fff1eb
+}
+
+.note {
+    border-left: 4px solid #b5222c;
+    background: #f3dddd;
+    padding: 15px
+}
+
+.portal>footer {
+    width: min(1180px, 100%);
+    margin: auto;
+    text-align: center;
+    color: #a69797;
+    padding: 22px;
+    font-size: .78rem;
+    letter-spacing: .08em
+}
+
+.portal>footer span {
+    color: var(--gold);
+    margin: 0 10px
+}
+
+@media(max-width:850px) {
+    .portal {
+        padding: 10px
+    }
+
+    .portal-frame {
+        border-radius: 20px
+    }
+
+    .topbar {
+        flex-wrap: wrap;
+        min-height: 76px
+    }
+
+    .menu-toggle {
+        display: block
+    }
+
+    .main-nav {
+        display: none;
+        flex-basis: 100%;
+        flex-direction: column
+    }
+
+    .main-nav.open {
+        display: flex
+    }
+
+    .main-nav a {
+        width: 100%
+    }
+
+    .banner {
+        min-height: 145px
+    }
+
+    .portal-body {
+        grid-template-columns: 1fr
+    }
+
+    .profile-sidebar {
+        border-right: 0;
+        border-bottom: 1px solid #6f272c;
+        display: grid;
+        grid-template-columns: 80px 1fr;
+        gap: 4px 18px;
+        text-align: left;
+        align-items: center
+    }
+
+    .portrait-frame {
+        width: 80px;
+        grid-row: 1/4;
+        margin: 0
+    }
+
+    .profile-sidebar h2,
+    .member-meta,
+    .divider {
+        margin: 0
+    }
+
+    .divider {
+        display: none
+    }
+
+    .quick-links {
+        grid-column: 1/-1;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border-top: 1px solid #572125
+    }
+
+    .quick-links a {
+        padding: .7rem
+    }
+
+    .sidebar-button,
+    .logout-button,
+    .install-message {
+        grid-column: 1/-1
+    }
+
+    .content-grid {
+        grid-template-columns: 1fr
+    }
+
+    .house-lore-card {
+        grid-template-columns: 90px 1fr;
+        padding: 20px
+    }
+
+    .house-great-symbol {
+        width: 90px;
+        height: 90px;
+        font-size: 3.6rem
+    }
+}
+
+@media(max-width:520px) {
+    .wordmark span:last-child {
+        display: none
+    }
+
+    .banner {
+        min-height: 120px
+    }
+
+    .content-panel {
+        padding: 30px 18px
+    }
+
+    .profile-sidebar {
+        padding: 22px 16px
+    }
+
+    .page-heading h1 {
+        font-size: 2.5rem
+    }
+
+    .schedule {
+        display: block;
+        overflow-x: auto
+    }
+
+    .house-lore-card {
+        grid-template-columns: 1fr;
+        text-align: center
+    }
+
+    .house-great-symbol {
+        margin: auto
+    }
+
+    .house-members-heading {
+        align-items: flex-start;
+        flex-direction: column
+    }
+
+    .house-members-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px
+    }
+
+    .house-person {
+        padding: 16px 8px
+    }
+
+    .house-person img {
+        width: 76px;
+        height: 76px
+    }
+}

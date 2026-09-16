@@ -1,0 +1,101 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function loggedIn() { return request.auth != null; }
+    function myProfile() { return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data; }
+    function isStudent() { return loggedIn() && myProfile().rol == "alumno"; }
+    function isTeacher() { return loggedIn() && myProfile().rol == "profesor"; }
+    function taskData(taskId) { return get(/databases/$(database)/documents/tareas/$(taskId)).data; }
+
+    match /usuarios/{uid} {
+      allow read: if loggedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /perfilesPublicos/{uid} {
+      allow read: if loggedIn();
+      allow write: if false;
+    }
+
+    match /tareas/{taskId} {
+      allow read: if loggedIn() && (
+        resource.data.profesorId == request.auth.uid ||
+        (isStudent() && (resource.data.grado == myProfile().grado || resource.data.grado == "Todos"))
+      );
+
+      allow create: if isTeacher()
+        && request.resource.data.profesorId == request.auth.uid
+        && request.resource.data.grado in ["B", "A", "S", "Todos"]
+        && request.resource.data.estado == "activa"
+        && request.resource.data.titulo is string
+        && request.resource.data.titulo.size() > 0
+        && request.resource.data.titulo.size() <= 100
+        && request.resource.data.instrucciones is string
+        && request.resource.data.instrucciones.size() > 0
+        && request.resource.data.instrucciones.size() <= 2000
+        && request.resource.data.fechaLimite is timestamp
+        && request.resource.data.creadaEn is timestamp;
+
+      allow update: if isTeacher()
+        && resource.data.profesorId == request.auth.uid
+        && request.resource.data.profesorId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["titulo", "instrucciones", "grado", "fechaLimite", "estado"])
+        && request.resource.data.grado in ["B", "A", "S", "Todos"]
+        && request.resource.data.estado in ["activa", "cerrada"]
+        && request.resource.data.titulo is string
+        && request.resource.data.titulo.size() > 0
+        && request.resource.data.titulo.size() <= 100
+        && request.resource.data.instrucciones is string
+        && request.resource.data.instrucciones.size() > 0
+        && request.resource.data.instrucciones.size() <= 2000
+        && request.resource.data.fechaLimite is timestamp;
+
+      allow delete: if false;
+    }
+
+    match /entregas/{deliveryId} {
+      allow read: if loggedIn() && (
+        resource.data.alumnoId == request.auth.uid ||
+        (isTeacher() && resource.data.profesorId == request.auth.uid)
+      );
+
+      allow create: if isStudent()
+        && deliveryId == request.resource.data.tareaId + "_" + request.auth.uid
+        && request.resource.data.alumnoId == request.auth.uid
+        && request.resource.data.profesorId == taskData(request.resource.data.tareaId).profesorId
+        && taskData(request.resource.data.tareaId).estado == "activa"
+        && (taskData(request.resource.data.tareaId).grado == myProfile().grado || taskData(request.resource.data.tareaId).grado == "Todos")
+        && request.resource.data.metodo in ["foto", "whatsapp"]
+        && request.resource.data.fotoUrl is string
+        && request.resource.data.publicId is string
+        && (
+          (request.resource.data.metodo == "foto"
+            && request.resource.data.fotoUrl.size() > 0
+            && request.resource.data.publicId.size() > 0)
+          ||
+          (request.resource.data.metodo == "whatsapp"
+            && request.resource.data.fotoUrl == ""
+            && request.resource.data.publicId == "")
+        )
+        && request.resource.data.fechaEntrega is timestamp
+        && request.resource.data.entregadaTarde is bool
+        && request.resource.data.estado == "pendiente"
+        && request.resource.data.calificacion == null
+        && request.resource.data.comentario == "";
+
+      allow update: if isTeacher()
+        && resource.data.profesorId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["calificacion", "comentario", "estado", "calificadaEn"])
+        && request.resource.data.calificacion is int
+        && request.resource.data.calificacion >= 1
+        && request.resource.data.calificacion <= 100
+        && request.resource.data.comentario is string
+        && request.resource.data.comentario.size() <= 500
+        && request.resource.data.estado == "calificada"
+        && request.resource.data.calificadaEn is timestamp;
+
+      allow delete: if false;
+    }
+  }
+}

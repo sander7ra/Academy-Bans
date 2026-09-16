@@ -1,0 +1,117 @@
+.login-screen {
+    width: min(1120px, calc(100% - 40px));
+    min-height: 100vh;
+    margin: auto;
+    display: grid;
+    grid-template-columns: 1.1fr minmax(320px, 460px);
+    align-items: center;
+    gap: clamp(40px, 8vw, 110px);
+    padding: 50px 0
+}
+
+.login-copy h1 {
+    font: 600 clamp(4.2rem, 9vw, 8rem)/.74 'Cormorant Garamond', serif;
+    letter-spacing: -.04em;
+    margin: .35em 0
+}
+
+.login-copy h1 em {
+    color: var(--gold);
+    font-weight: 500
+}
+
+.login-copy>p:last-child {
+    max-width: 330px;
+    color: var(--muted)
+}
+
+.login-card {
+    position: relative;
+    padding: clamp(30px, 5vw, 52px);
+    border: 1px solid #a33a425c;
+    border-radius: 28px;
+    background: linear-gradient(145deg, #260b0ebf, #0c0808e8);
+    box-shadow: 0 30px 80px #0008;
+    backdrop-filter: blur(14px)
+}
+
+.login-card::before {
+    content: "";
+    position: absolute;
+    inset: 12px;
+    border: 1px solid #d45b642c;
+    border-radius: 20px;
+    pointer-events: none
+}
+
+.mini-crest {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    border: 1px solid var(--gold);
+    border-radius: 50%;
+    font: 2rem 'Cormorant Garamond', serif;
+    color: var(--gold)
+}
+
+.login-card h2 {
+    font: 600 2.2rem 'Cormorant Garamond', serif;
+    margin: .25rem 0 1.5rem
+}
+
+.login-card label {
+    display: block;
+    margin: 1rem 0 .45rem;
+    font-size: .9rem
+}
+
+.login-card input {
+    width: 100%;
+    padding: .95rem 1rem;
+    border: 1px solid #703136;
+    border-radius: 12px;
+    background: #090606;
+    color: #fff
+}
+
+.password-field {
+    position: relative
+}
+
+.password-field input {
+    padding-right: 68px
+}
+
+.text-button {
+    position: absolute;
+    right: 8px;
+    top: 7px;
+    border: 0;
+    background: transparent;
+    color: var(--gold);
+    padding: .65rem
+}
+
+.login-card .gold-button {
+    margin-top: .25rem
+}
+
+.form-help {
+    margin: 1.5rem 0 0
+}
+
+@media(max-width:760px) {
+    .login-screen {
+        grid-template-columns: 1fr;
+        padding: 34px 0
+    }
+
+    .login-copy {
+        display: none
+    }
+
+    .login-card {
+        padding: 32px 24px
+    }
+}

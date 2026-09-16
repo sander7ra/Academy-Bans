@@ -1,0 +1,138 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,600&family=DM+Sans:wght@400;500;600&display=swap');
+
+:root {
+    color-scheme: dark;
+    --ink: #070707;
+    --plum: #1b080a;
+    --plum-2: #3a0b10;
+    --paper: #f7f1ec;
+    --paper-ink: #24191a;
+    --gold: #c5222d;
+    --gold-dark: #741218;
+    --muted: #c7b9b9;
+    --line: #64272c;
+    --danger: #ff9aa3
+}
+
+* {
+    box-sizing: border-box
+}
+
+html {
+    min-height: 100%;
+    background: var(--ink)
+}
+
+body {
+    min-height: 100vh;
+    margin: 0;
+    background: radial-gradient(circle at 15% 15%, #4a0d13 0, transparent 34%), radial-gradient(circle at 85% 85%, #26070a 0, transparent 36%), var(--ink);
+    color: #fff7f4;
+    font: 16px/1.55 'DM Sans', sans-serif
+}
+
+button,
+input {
+    font: inherit
+}
+
+button,
+a {
+    -webkit-tap-highlight-color: transparent
+}
+
+button {
+    cursor: pointer
+}
+
+a {
+    color: inherit
+}
+
+img {
+    display: block;
+    max-width: 100%
+}
+
+[hidden] {
+    display: none !important
+}
+
+.kicker {
+    text-transform: uppercase;
+    letter-spacing: .19em;
+    color: var(--gold);
+    font-size: .78rem;
+    font-weight: 600
+}
+
+.gold-button {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #d9343f, #8f1018);
+    color: #fff7f4;
+    font-weight: 700;
+    padding: 1rem 1.25rem
+}
+
+.gold-button:hover {
+    filter: brightness(1.07)
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px
+}
+
+.form-message {
+    min-height: 1.5rem;
+    color: var(--danger);
+    font-size: .88rem
+}
+
+.form-help,
+.install-message {
+    color: var(--muted);
+    font-size: .78rem;
+    text-align: center
+}
+
+.spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #9b30383a;
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin .8s linear infinite
+}
+
+.loading-card {
+    min-height: 300px;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    color: #796568
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg)
+    }
+}
+
+@media(prefers-reduced-motion:reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important
+    }
+}

@@ -1,0 +1,54 @@
+.tasks-toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:20px}
+.tasks-toolbar h2{font:600 2rem 'Cormorant Garamond',serif;margin:0}
+.tasks-button{border:0;border-radius:999px;background:linear-gradient(135deg,#d9343f,#8f1018);color:#fff;padding:.78rem 1.1rem;font-weight:700}
+.tasks-button.secondary{background:#fff;color:#941923;border:1px solid #b84a52}
+.tasks-button:disabled{opacity:.6;cursor:wait}
+.task-form{display:grid;gap:15px;margin-bottom:24px}
+.task-form label,.grade-form label{display:grid;gap:6px;font-size:.9rem;font-weight:600}
+.task-form input,.task-form textarea,.task-form select,.grade-form input,.grade-form textarea{width:100%;padding:.82rem .9rem;border:1px solid #c8afb1;border-radius:10px;background:#fff;color:#24191a}
+.task-form textarea,.grade-form textarea{min-height:105px;resize:vertical}
+.task-form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-status{min-height:1.4rem;color:#941923;font-size:.88rem;margin:0}
+.task-list{display:grid;gap:18px}
+.task-card{border:1px solid #d0bcbc;border-radius:18px;background:#fff;padding:22px;box-shadow:0 12px 28px #4d111610}
+.task-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+.task-card h3{font:600 1.65rem 'Cormorant Garamond',serif;margin:0}
+.task-card p{white-space:pre-line}
+.task-meta{display:flex;flex-wrap:wrap;gap:8px;margin:.7rem 0}
+.task-chip{display:inline-flex;border-radius:999px;background:#f1dddd;color:#7f141c;padding:.3rem .65rem;font-size:.76rem;font-weight:700}
+.task-chip.closed{background:#e1dddd;color:#605657}
+.task-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:15px}
+.submission-list{display:grid;gap:12px;margin-top:18px;padding-top:18px;border-top:1px solid #ddcccc}
+.submission{display:grid;grid-template-columns:88px 1fr;gap:15px;border:1px solid #dac9c9;border-radius:14px;padding:12px;background:#fbf7f4}
+.submission img{width:88px;height:88px;object-fit:cover;border-radius:10px;background:#eadede}
+.submission h4{margin:0;font:600 1.2rem 'Cormorant Garamond',serif}
+.submission p{margin:.15rem 0;font-size:.86rem;color:#6e6061}
+.grade-form{display:grid;grid-template-columns:100px 1fr auto;gap:8px;margin-top:9px;align-items:end}
+.grade-form textarea{min-height:42px;height:42px}
+.delivery-box{margin-top:16px;border-top:1px solid #ddcccc;padding-top:16px}
+.delivery-preview{display:grid;grid-template-columns:100px 1fr;gap:14px;align-items:center}
+.delivery-preview img{width:100px;height:100px;object-fit:cover;border-radius:12px}
+.delivery-methods{display:grid;grid-template-columns:1fr 1fr;gap:8px;border:0;padding:0;margin:0 0 14px}
+.delivery-methods legend{grid-column:1/-1;font-weight:700;margin-bottom:5px}
+.method-option{border:1px solid #d0b9bb;border-radius:12px;padding:12px;background:#fff;cursor:pointer}
+.method-option:has(input:checked){border-color:#b5222c;background:#f7e4e5;color:#86151d}
+.whatsapp-evidence{width:88px;height:88px;display:grid;place-items:center;border-radius:12px;background:#daf3e2;color:#156b38;font-size:.72rem;font-weight:800;text-align:center}
+.delivery-preview .whatsapp-evidence{width:100px;height:100px}
+.status-pending{color:#8a5b12;font-weight:700}
+.status-graded{color:#167245;font-weight:700}
+.score{font:600 2rem 'Cormorant Garamond',serif;color:#9c1922}
+.empty-tasks{text-align:center;border:1px dashed #c7adaf;border-radius:18px;padding:45px 20px;color:#776668}
+.upload-label{display:block;border:1px dashed #ac454c;border-radius:12px;padding:18px;text-align:center;color:#941923;font-weight:700;cursor:pointer}
+.upload-label input{display:none}
+.selected-file{font-size:.82rem;color:#716263;text-align:center}
+.task-error{border:1px solid #d59a9f;background:#f9e2e4;color:#7e1119;border-radius:12px;padding:14px}
+.teacher-only,.student-only{display:none}
+@media(max-width:700px){
+  .tasks-toolbar,.task-card-head{align-items:stretch;flex-direction:column}
+  .task-form-row,.delivery-methods{grid-template-columns:1fr}
+  .submission{grid-template-columns:64px 1fr}
+  .submission img,.whatsapp-evidence{width:64px;height:64px}
+  .grade-form{grid-template-columns:1fr}
+  .delivery-preview{grid-template-columns:75px 1fr}
+  .delivery-preview img,.delivery-preview .whatsapp-evidence{width:75px;height:75px}
+}
