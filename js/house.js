@@ -40,15 +40,19 @@ function memberSlug(value) {
 function memberCard(member) {
   const card = document.createElement("article");
   card.className = "house-person";
+
   const image = document.createElement("img");
   image.src = `./assets/images/members/${memberSlug(member.usuario)}-icon.png`;
-  image.alt = `Foto de ${member.nombre || member.usuario || "integrante"}`;
-  image.onerror = () => { image.onerror = null; image.src = "./assets/images/members/default-member.svg"; };
+  image.alt = `Foto de ${member.nombre || "integrante"}`;
+  image.onerror = () => {
+    image.onerror = null;
+    image.src = "./assets/images/members/default-member.svg";
+  };
+
   const name = document.createElement("h3");
-  name.textContent = member.nombre || member.usuario || "Integrante";
-  const username = document.createElement("p");
-  username.textContent = member.usuario ? `@${member.usuario}` : "Integrante de la casa";
-  card.append(image, name, username);
+  name.textContent = member.nombre || "Integrante";
+
+  card.append(image, name);
   return card;
 }
 
