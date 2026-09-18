@@ -1,7 +1,8 @@
 import { initTasksPage } from "./tasks.js";
 import { initHousePage } from "./house.js";
+import { initStorePage, initRequestsPage } from "./economy.js";
 
-const routes = new Set(["home", "reglas", "lore", "ajustes", "casa", "calendario", "tareas"]);
+const routes = new Set(["home", "reglas", "lore", "ajustes", "casa", "calendario", "tareas", "tienda", "solicitudes"]);
 let currentRoute = "";
 
 function routeFromHash() {
@@ -35,6 +36,8 @@ export async function renderRoute(force = false) {
     content.querySelector("h1")?.focus({ preventScroll: true });
     if (route === "tareas") await initTasksPage();
     if (route === "casa") await initHousePage();
+    if (route === "tienda") await initStorePage();
+    if (route === "solicitudes") await initRequestsPage();
   } catch {
     content.innerHTML = '<div class="soon"><span>✦</span><h1>No se pudo abrir</h1><p>Revisa tu conexión y vuelve a intentarlo.</p></div>';
   } finally {

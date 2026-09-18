@@ -2,11 +2,66 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function loggedIn() { return request.auth != null; }
-    function myProfile() { return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data; }
-    function isStudent() { return loggedIn() && myProfile().rol == "alumno"; }
-    function isTeacher() { return loggedIn() && myProfile().rol == "profesor"; }
-    function taskData(taskId) { return get(/databases/$(database)/documents/tareas/$(taskId)).data; }
+    function loggedIn() {
+      return request.auth != null;
+    }
+
+    function profileOf(uid) {
+      return get(/databases/$(database)/documents/usuarios/$(uid)).data;
+    }
+
+    function myProfile() {
+      return profileOf(request.auth.uid);
+    }
+
+    function isStudent() {
+      return loggedIn() && myProfile().rol == "alumno";
+    }
+
+    function isTeacher() {
+      return loggedIn() && myProfile().rol == "profesor";
+    }
+
+    function isAdmin() {
+      return loggedIn() && (myProfile().get("esAdmin", false) == true || myProfile().rol == "admin");
+    }
+
+    function taskData(taskId) {
+      return get(/databases/$(database)/documents/tareas/$(taskId)).data;
+    }
+
+    function targetsMyHouse(houses) {
+      return houses is list && (
+        (myProfile().casa in ["Concordia", "Casa Concordia"] && houses.hasAny(["Concordia"]))
+        || (myProfile().casa in ["Divitiae", "Casa Divitiae"] && houses.hasAny(["Divitiae"]))
+        || (myProfile().casa in ["Fatum", "Casa Fatum"] && houses.hasAny(["Fatum"]))
+        || (myProfile().casa in ["Virtus", "Casa Virtus"] && houses.hasAny(["Virtus"]))
+      );
+    }
+
+    function rewardFor(grade, late) {
+      return (grade == 100 ? 25 : grade >= 90 ? 20 : grade >= 80 ? 15 : grade >= 70 ? 10 : 5)
+        + (late ? 0 : 5);
+    }
+
+    function validWallet(data) {
+      return data.keys().hasAll([
+          "saldo", "ultimaOperacion", "tipoOperacion", "ultimoCambioPersonaje",
+          "ultimoTestCasa", "creadaEn", "actualizadaEn"
+        ])
+        && data.keys().hasOnly([
+          "saldo", "ultimaOperacion", "tipoOperacion", "ultimoCambioPersonaje",
+          "ultimoTestCasa", "creadaEn", "actualizadaEn"
+        ])
+        && data.saldo is int
+        && data.saldo >= 0
+        && data.ultimaOperacion is string
+        && data.tipoOperacion is string
+        && data.ultimoCambioPersonaje is timestamp
+        && data.ultimoTestCasa is timestamp
+        && data.creadaEn is timestamp
+        && data.actualizadaEn is timestamp;
+    }
 
     match /usuarios/{uid} {
       allow read: if loggedIn() && request.auth.uid == uid;
@@ -18,15 +73,286 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /monederos/{uid} {
+      function transferAfter() {
+        return getAfter(/databases/$(database)/documents/transferenciasMonedas/$(request.resource.data.ultimaOperacion)).data;
+      }
+
+      function requestAfter() {
+        return getAfter(/databases/$(database)/documents/solicitudesTienda/$(request.resource.data.ultimaOperacion)).data;
+      }
+
+      function requestBefore() {
+        return get(/databases/$(database)/documents/solicitudesTienda/$(request.resource.data.ultimaOperacion)).data;
+      }
+
+      function deliveryAfter() {
+        return getAfter(/databases/$(database)/documents/entregas/$(request.resource.data.ultimaOperacion)).data;
+      }
+
+      function deliveryBefore() {
+        return get(/databases/$(database)/documents/entregas/$(request.resource.data.ultimaOperacion)).data;
+      }
+
+      function commonWalletUpdate() {
+        return validWallet(request.resource.data)
+          && request.resource.data.creadaEn == resource.data.creadaEn
+          && request.resource.data.actualizadaEn == request.time;
+      }
+
+      function transferOut() {
+        return request.resource.data.tipoOperacion == "transferencia_salida"
+          && request.auth.uid == uid
+          && request.resource.data.ultimaOperacion != resource.data.ultimaOperacion
+          && existsAfter(/databases/$(database)/documents/transferenciasMonedas/$(request.resource.data.ultimaOperacion))
+          && transferAfter().emisorId == uid
+          && transferAfter().receptorId != uid
+          && transferAfter().cantidad is int
+          && transferAfter().cantidad > 0
+          && request.resource.data.saldo == resource.data.saldo - transferAfter().cantidad
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "saldo", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+          ]);
+      }
+
+      function transferIn() {
+        return request.resource.data.tipoOperacion == "transferencia_entrada"
+          && request.resource.data.ultimaOperacion != resource.data.ultimaOperacion
+          && existsAfter(/databases/$(database)/documents/transferenciasMonedas/$(request.resource.data.ultimaOperacion))
+          && transferAfter().emisorId == request.auth.uid
+          && transferAfter().receptorId == uid
+          && transferAfter().emisorId != uid
+          && transferAfter().cantidad is int
+          && transferAfter().cantidad > 0
+          && request.resource.data.saldo == resource.data.saldo + transferAfter().cantidad
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "saldo", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+          ]);
+      }
+
+      function characterPurchase() {
+        return request.auth.uid == uid
+          && request.resource.data.tipoOperacion == "compra"
+          && request.resource.data.ultimaOperacion != resource.data.ultimaOperacion
+          && existsAfter(/databases/$(database)/documents/solicitudesTienda/$(request.resource.data.ultimaOperacion))
+          && requestAfter().compradorId == uid
+          && requestAfter().productoId == "cambio_personaje"
+          && requestAfter().costo == 120
+          && requestAfter().cooldownAnterior == resource.data.ultimoCambioPersonaje
+          && request.resource.data.saldo == resource.data.saldo - 120
+          && request.resource.data.ultimoCambioPersonaje == request.time
+          && request.time >= resource.data.ultimoCambioPersonaje + duration.value(30, "d")
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "saldo", "ultimoCambioPersonaje", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+          ]);
+      }
+
+      function testPurchase() {
+        return request.auth.uid == uid
+          && request.resource.data.tipoOperacion == "compra"
+          && request.resource.data.ultimaOperacion != resource.data.ultimaOperacion
+          && existsAfter(/databases/$(database)/documents/solicitudesTienda/$(request.resource.data.ultimaOperacion))
+          && requestAfter().compradorId == uid
+          && requestAfter().productoId == "repetir_test"
+          && requestAfter().costo == 450
+          && requestAfter().cooldownAnterior == resource.data.ultimoTestCasa
+          && request.resource.data.saldo == resource.data.saldo - 450
+          && request.resource.data.ultimoTestCasa == request.time
+          && request.time >= resource.data.ultimoTestCasa + duration.value(60, "d")
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "saldo", "ultimoTestCasa", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+          ]);
+      }
+
+      function gradeReward() {
+        return isTeacher()
+          && request.resource.data.tipoOperacion == "calificacion"
+          && existsAfter(/databases/$(database)/documents/entregas/$(request.resource.data.ultimaOperacion))
+          && deliveryBefore().estado == "pendiente"
+          && deliveryAfter().estado == "calificada"
+          && deliveryAfter().alumnoId == uid
+          && deliveryAfter().profesorId == request.auth.uid
+          && deliveryAfter().monedasOtorgadas == rewardFor(deliveryAfter().calificacion, deliveryAfter().entregadaTarde)
+          && request.resource.data.saldo == resource.data.saldo + deliveryAfter().monedasOtorgadas
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "saldo", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+          ]);
+      }
+
+      function characterRefund() {
+        return isAdmin()
+          && request.resource.data.tipoOperacion == "reembolso"
+          && existsAfter(/databases/$(database)/documents/solicitudesTienda/$(request.resource.data.ultimaOperacion))
+          && requestBefore().estado == "pendiente"
+          && requestAfter().estado == "rechazada"
+          && requestAfter().reembolsada == true
+          && requestAfter().administradorId == request.auth.uid
+          && requestAfter().compradorId == uid
+          && requestAfter().productoId == "cambio_personaje"
+          && request.resource.data.saldo == resource.data.saldo + requestAfter().costo
+          && request.resource.data.ultimoCambioPersonaje == requestAfter().cooldownAnterior
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "saldo", "ultimoCambioPersonaje", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+          ]);
+      }
+
+      function testRefund() {
+        return isAdmin()
+          && request.resource.data.tipoOperacion == "reembolso"
+          && existsAfter(/databases/$(database)/documents/solicitudesTienda/$(request.resource.data.ultimaOperacion))
+          && requestBefore().estado == "pendiente"
+          && requestAfter().estado == "rechazada"
+          && requestAfter().reembolsada == true
+          && requestAfter().administradorId == request.auth.uid
+          && requestAfter().compradorId == uid
+          && requestAfter().productoId == "repetir_test"
+          && request.resource.data.saldo == resource.data.saldo + requestAfter().costo
+          && request.resource.data.ultimoTestCasa == requestAfter().cooldownAnterior
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "saldo", "ultimoTestCasa", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+          ]);
+      }
+
+      allow get: if loggedIn();
+      allow list: if isAdmin();
+
+      allow create: if loggedIn()
+        && request.auth.uid == uid
+        && validWallet(request.resource.data)
+        && request.resource.data.saldo == 0
+        && request.resource.data.ultimaOperacion == "inicio"
+        && request.resource.data.tipoOperacion == "inicio"
+        && request.resource.data.ultimoCambioPersonaje <= request.time
+        && request.resource.data.ultimoTestCasa <= request.time
+        && request.resource.data.creadaEn == request.time
+        && request.resource.data.actualizadaEn == request.time;
+
+      allow update: if loggedIn() && commonWalletUpdate() && (
+        transferOut() || transferIn() || characterPurchase() || testPurchase()
+        || gradeReward() || characterRefund() || testRefund()
+      );
+
+      allow delete: if false;
+    }
+
+    match /transferenciasMonedas/{transferId} {
+      allow read: if loggedIn() && (
+        resource.data.emisorId == request.auth.uid
+        || resource.data.receptorId == request.auth.uid
+        || isAdmin()
+      );
+
+      allow create: if loggedIn()
+        && request.resource.data.keys().hasAll([
+          "emisorId", "emisorUsuario", "receptorId", "receptorUsuario", "cantidad", "fecha"
+        ])
+        && request.resource.data.keys().hasOnly([
+          "emisorId", "emisorUsuario", "receptorId", "receptorUsuario", "cantidad", "fecha"
+        ])
+        && request.resource.data.emisorId == request.auth.uid
+        && request.resource.data.receptorId != request.auth.uid
+        && request.resource.data.emisorUsuario == myProfile().usuario
+        && request.resource.data.receptorUsuario == get(/databases/$(database)/documents/perfilesPublicos/$(request.resource.data.receptorId)).data.usuario
+        && request.resource.data.cantidad is int
+        && request.resource.data.cantidad > 0
+        && request.resource.data.fecha == request.time
+        && getAfter(/databases/$(database)/documents/monederos/$(request.resource.data.emisorId)).data.saldo
+          == get(/databases/$(database)/documents/monederos/$(request.resource.data.emisorId)).data.saldo - request.resource.data.cantidad
+        && getAfter(/databases/$(database)/documents/monederos/$(request.resource.data.receptorId)).data.saldo
+          == get(/databases/$(database)/documents/monederos/$(request.resource.data.receptorId)).data.saldo + request.resource.data.cantidad
+        && getAfter(/databases/$(database)/documents/monederos/$(request.resource.data.emisorId)).data.ultimaOperacion == transferId
+        && getAfter(/databases/$(database)/documents/monederos/$(request.resource.data.receptorId)).data.ultimaOperacion == transferId
+        && getAfter(/databases/$(database)/documents/monederos/$(request.resource.data.emisorId)).data.tipoOperacion == "transferencia_salida"
+        && getAfter(/databases/$(database)/documents/monederos/$(request.resource.data.receptorId)).data.tipoOperacion == "transferencia_entrada";
+
+      allow update, delete: if false;
+    }
+
+    match /solicitudesTienda/{requestId} {
+      function validProduct(data) {
+        return (
+          data.productoId == "cambio_personaje"
+          && data.productoNombre == "Cambio de personaje"
+          && data.costo == 120
+          && data.detalle is string
+          && data.detalle.size() > 0
+          && data.detalle.size() <= 120
+        ) || (
+          data.productoId == "repetir_test"
+          && data.productoNombre == "Volver a hacer el test"
+          && data.costo == 450
+          && data.detalle == ""
+        );
+      }
+
+      allow read: if loggedIn() && (resource.data.compradorId == request.auth.uid || isAdmin());
+
+      allow create: if loggedIn()
+        && request.resource.data.keys().hasAll([
+          "compradorId", "compradorNombre", "compradorUsuario", "productoId", "productoNombre",
+          "costo", "detalle", "estado", "fechaSolicitud", "cooldownAnterior", "administradorId",
+          "administradorNombre", "fechaAtencion", "reembolsada"
+        ])
+        && request.resource.data.keys().hasOnly([
+          "compradorId", "compradorNombre", "compradorUsuario", "productoId", "productoNombre",
+          "costo", "detalle", "estado", "fechaSolicitud", "cooldownAnterior", "administradorId",
+          "administradorNombre", "fechaAtencion", "reembolsada"
+        ])
+        && request.resource.data.compradorId == request.auth.uid
+        && request.resource.data.compradorNombre == myProfile().get("nombre", myProfile().usuario)
+        && request.resource.data.compradorUsuario == myProfile().usuario
+        && validProduct(request.resource.data)
+        && request.resource.data.estado == "pendiente"
+        && request.resource.data.fechaSolicitud == request.time
+        && request.resource.data.cooldownAnterior is timestamp
+        && request.resource.data.administradorId == null
+        && request.resource.data.administradorNombre == ""
+        && request.resource.data.fechaAtencion == null
+        && request.resource.data.reembolsada == false
+        && getAfter(/databases/$(database)/documents/monederos/$(request.auth.uid)).data.ultimaOperacion == requestId
+        && getAfter(/databases/$(database)/documents/monederos/$(request.auth.uid)).data.tipoOperacion == "compra"
+        && getAfter(/databases/$(database)/documents/monederos/$(request.auth.uid)).data.saldo
+          == get(/databases/$(database)/documents/monederos/$(request.auth.uid)).data.saldo - request.resource.data.costo;
+
+      allow update: if isAdmin()
+        && resource.data.estado == "pendiente"
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "estado", "administradorId", "administradorNombre", "fechaAtencion", "reembolsada"
+        ])
+        && request.resource.data.administradorId == request.auth.uid
+        && request.resource.data.administradorNombre is string
+        && request.resource.data.administradorNombre.size() > 0
+        && request.resource.data.fechaAtencion == request.time
+        && (
+          (request.resource.data.estado == "aceptada" && request.resource.data.reembolsada == false)
+          ||
+          (request.resource.data.estado == "rechazada"
+            && request.resource.data.reembolsada == true
+            && getAfter(/databases/$(database)/documents/monederos/$(resource.data.compradorId)).data.saldo
+              == get(/databases/$(database)/documents/monederos/$(resource.data.compradorId)).data.saldo + resource.data.costo
+            && getAfter(/databases/$(database)/documents/monederos/$(resource.data.compradorId)).data.ultimaOperacion == requestId
+            && getAfter(/databases/$(database)/documents/monederos/$(resource.data.compradorId)).data.tipoOperacion == "reembolso")
+        );
+
+      allow delete: if false;
+    }
+
     match /tareas/{taskId} {
       allow read: if loggedIn() && (
-        resource.data.profesorId == request.auth.uid ||
-        (isStudent() && (resource.data.grado == myProfile().grado || resource.data.grado == "Todos"))
+        resource.data.profesorId == request.auth.uid
+        || (isStudent()
+          && targetsMyHouse(resource.data.casasDestino))
       );
 
       allow create: if isTeacher()
+        && myProfile().get("casasACargo", []) is list
         && request.resource.data.profesorId == request.auth.uid
         && request.resource.data.grado in ["B", "A", "S", "Todos"]
+        && request.resource.data.casasDestino is list
+        && request.resource.data.casasDestino.size() >= 1
+        && request.resource.data.casasDestino.size() <= 2
+        && request.resource.data.casasDestino.hasOnly(["Concordia", "Divitiae", "Fatum", "Virtus"])
+        && request.resource.data.casasDestino.hasOnly(myProfile().get("casasACargo", []))
         && request.resource.data.estado == "activa"
         && request.resource.data.titulo is string
         && request.resource.data.titulo.size() > 0
@@ -38,10 +364,18 @@ service cloud.firestore {
         && request.resource.data.creadaEn is timestamp;
 
       allow update: if isTeacher()
+        && myProfile().get("casasACargo", []) is list
         && resource.data.profesorId == request.auth.uid
         && request.resource.data.profesorId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["titulo", "instrucciones", "grado", "fechaLimite", "estado"])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "titulo", "instrucciones", "grado", "casasDestino", "fechaLimite", "estado"
+        ])
         && request.resource.data.grado in ["B", "A", "S", "Todos"]
+        && request.resource.data.casasDestino is list
+        && request.resource.data.casasDestino.size() >= 1
+        && request.resource.data.casasDestino.size() <= 2
+        && request.resource.data.casasDestino.hasOnly(["Concordia", "Divitiae", "Fatum", "Virtus"])
+        && request.resource.data.casasDestino.hasOnly(myProfile().get("casasACargo", []))
         && request.resource.data.estado in ["activa", "cerrada"]
         && request.resource.data.titulo is string
         && request.resource.data.titulo.size() > 0
@@ -56,8 +390,8 @@ service cloud.firestore {
 
     match /entregas/{deliveryId} {
       allow read: if loggedIn() && (
-        resource.data.alumnoId == request.auth.uid ||
-        (isTeacher() && resource.data.profesorId == request.auth.uid)
+        resource.data.alumnoId == request.auth.uid
+        || (isTeacher() && resource.data.profesorId == request.auth.uid)
       );
 
       allow create: if isStudent()
@@ -65,6 +399,7 @@ service cloud.firestore {
         && request.resource.data.alumnoId == request.auth.uid
         && request.resource.data.profesorId == taskData(request.resource.data.tareaId).profesorId
         && taskData(request.resource.data.tareaId).estado == "activa"
+        && targetsMyHouse(taskData(request.resource.data.tareaId).casasDestino)
         && (taskData(request.resource.data.tareaId).grado == myProfile().grado || taskData(request.resource.data.tareaId).grado == "Todos")
         && request.resource.data.metodo in ["foto", "whatsapp"]
         && request.resource.data.fotoUrl is string
@@ -86,14 +421,22 @@ service cloud.firestore {
 
       allow update: if isTeacher()
         && resource.data.profesorId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["calificacion", "comentario", "estado", "calificadaEn"])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "calificacion", "comentario", "estado", "calificadaEn", "monedasOtorgadas"
+        ])
         && request.resource.data.calificacion is int
         && request.resource.data.calificacion >= 1
         && request.resource.data.calificacion <= 100
         && request.resource.data.comentario is string
         && request.resource.data.comentario.size() <= 500
         && request.resource.data.estado == "calificada"
-        && request.resource.data.calificadaEn is timestamp;
+        && request.resource.data.calificadaEn == request.time
+        && request.resource.data.monedasOtorgadas
+          == rewardFor(request.resource.data.calificacion, resource.data.entregadaTarde)
+        && getAfter(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.saldo
+          == get(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.saldo + request.resource.data.monedasOtorgadas
+        && getAfter(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.ultimaOperacion == deliveryId
+        && getAfter(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.tipoOperacion == "calificacion";
 
       allow delete: if false;
     }

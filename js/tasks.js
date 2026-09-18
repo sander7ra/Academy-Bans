@@ -1,9 +1,10 @@
-import { collection, addDoc, setDoc, doc, getDocs, query, where, updateDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import { collection, addDoc, setDoc, doc, getDocs, query, where, updateDoc, serverTimestamp, Timestamp, runTransaction } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { auth, db } from "./firebase-config.js";
 
 const CLOUD_NAME = "djbnw9tl";
 const UPLOAD_PRESET = "tareas_team";
 let profile = null;
+const VALID_HOUSES = ["Concordia", "Divitiae", "Fatum", "Virtus"];
 
 export function setTaskProfile(value) { profile = value; }
 
@@ -45,6 +46,7 @@ function taskHeader(task) {
   title.append(el("h3", "", task.titulo || "Tarea sin título"));
   const meta = el("div", "task-meta");
   meta.append(el("span", "task-chip", `Grado ${task.grado}`));
+  (Array.isArray(task.casasDestino) ? task.casasDestino : []).forEach(house => meta.append(el("span", "task-chip house", house)));
   meta.append(el("span", `task-chip${task.estado === "cerrada" ? " closed" : ""}`, task.estado === "cerrada" ? "Cerrada" : "Activa"));
   title.append(meta);
   head.append(title, el("span", "task-chip", formatDate(task.fechaLimite)));
@@ -61,7 +63,13 @@ async function createTask(event) {
   const status = form.querySelector(".form-status");
   const button = form.querySelector("button[type=submit]");
   const data = new FormData(form);
+  const assignedHouses = Array.isArray(profile.casasACargo) ? profile.casasACargo.filter(house => VALID_HOUSES.includes(house)) : [];
+  const targetHouses = data.getAll("casas").map(String).filter(house => assignedHouses.includes(house));
   const dueDate = new Date(data.get("fechaLimite"));
+  if (!targetHouses.length) {
+    status.textContent = "Selecciona al menos una de tus casas asignadas.";
+    return;
+  }
   if (Number.isNaN(dueDate.getTime()) || dueDate <= new Date()) {
     status.textContent = "Selecciona una fecha futura.";
     return;
@@ -73,6 +81,7 @@ async function createTask(event) {
       titulo: String(data.get("titulo")).trim(),
       instrucciones: String(data.get("instrucciones")).trim(),
       grado: String(data.get("grado")),
+      casasDestino: targetHouses,
       fechaLimite: Timestamp.fromDate(dueDate),
       estado: "activa",
       profesorId: auth.currentUser.uid,
@@ -144,6 +153,7 @@ function teacherSubmission(submission) {
   body.append(el("p", "", `${submission.metodo === "whatsapp" ? "Entregada por WhatsApp" : "Foto subida"} · ${formatDate(submission.fechaEntrega)}${submission.entregadaTarde ? " · Tarde" : ""}`));
   if (submission.estado === "calificada") {
     body.append(el("div", "score", `${submission.calificacion}/100`));
+    if (Number.isInteger(submission.monedasOtorgadas)) body.append(el("p", "coins-earned", `${submission.monedasOtorgadas} monedas otorgadas`));
     if (submission.comentario) body.append(el("p", "", submission.comentario));
   } else {
     const form = el("form", "grade-form");
@@ -164,14 +174,31 @@ function teacherSubmission(submission) {
       if (!Number.isInteger(grade) || grade < 1 || grade > 100) return;
       button.disabled = true; button.textContent = "Guardando…";
       try {
-        await updateDoc(doc(db, "entregas", submission.id), {
-          calificacion: grade,
-          comentario: comment.value.trim(),
-          estado: "calificada",
-          calificadaEn: serverTimestamp()
+        const baseReward = grade === 100 ? 25 : grade >= 90 ? 20 : grade >= 80 ? 15 : grade >= 70 ? 10 : 5;
+        const reward = baseReward + (submission.entregadaTarde ? 0 : 5);
+        await runTransaction(db, async transaction => {
+          const deliveryRef = doc(db, "entregas", submission.id);
+          const studentWalletRef = doc(db, "monederos", submission.alumnoId);
+          const currentDelivery = await transaction.get(deliveryRef);
+          const wallet = await transaction.get(studentWalletRef);
+          if (!currentDelivery.exists() || currentDelivery.data().estado !== "pendiente") throw new Error("Esta entrega ya fue calificada.");
+          if (!wallet.exists()) throw new Error("El alumno debe abrir la versión nueva de la app antes de recibir monedas.");
+          transaction.update(deliveryRef, {
+            calificacion: grade,
+            comentario: comment.value.trim(),
+            estado: "calificada",
+            calificadaEn: serverTimestamp(),
+            monedasOtorgadas: reward
+          });
+          transaction.update(studentWalletRef, {
+            saldo: Number(wallet.data().saldo || 0) + reward,
+            ultimaOperacion: submission.id,
+            tipoOperacion: "calificacion",
+            actualizadaEn: serverTimestamp()
+          });
         });
         await renderTeacherPanel();
-      } catch { button.disabled = false; button.textContent = "Reintentar"; }
+      } catch (error) { console.error(error); button.disabled = false; button.textContent = error.message || "Reintentar"; }
     });
     body.append(form);
   }
@@ -191,10 +218,16 @@ async function renderTeacherPanel() {
   const form = document.createElement("form");
   form.className = "task-form paper-card";
   form.hidden = true;
-  form.innerHTML = `<label>Título<input name="titulo" maxlength="100" required placeholder="Ej. Teoría de pociones"></label><label>Instrucciones<textarea name="instrucciones" maxlength="2000" required placeholder="Explica qué deben realizar…"></textarea></label><div class="task-form-row"><label>Dirigida a<select name="grado" required><option value="Todos">Todos los grados</option><option value="B">Grado B</option><option value="A">Grado A</option><option value="S">Grado S</option></select></label><label>Fecha límite<input name="fechaLimite" type="datetime-local" required></label></div><p class="form-status" role="status"></p><button class="tasks-button" type="submit">Publicar tarea</button>`;
+  const assignedHouses = Array.isArray(profile.casasACargo) ? profile.casasACargo.filter(house => VALID_HOUSES.includes(house)) : [];
+  form.innerHTML = `<label>Título<input name="titulo" maxlength="100" required placeholder="Ej. Teoría de pociones"></label><label>Instrucciones<textarea name="instrucciones" maxlength="2000" required placeholder="Explica qué deben realizar…"></textarea></label><fieldset class="house-targets"><legend>Casas destinatarias</legend>${assignedHouses.map(house => `<label><input type="checkbox" name="casas" value="${house}" checked> ${house}</label>`).join("")}</fieldset><div class="task-form-row"><label>Dirigida a<select name="grado" required><option value="Todos">Todos los grados</option><option value="B">Grado B</option><option value="A">Grado A</option><option value="S">Grado S</option></select></label><label>Fecha límite<input name="fechaLimite" type="datetime-local" required></label></div><p class="form-status" role="status"></p><button class="tasks-button" type="submit">Publicar tarea</button>`;
+  if (!assignedHouses.length) {
+    addButton.disabled = true;
+    addButton.textContent = "Sin casas asignadas";
+  }
   addButton.addEventListener("click", () => { form.hidden = !form.hidden; if (!form.hidden) form.querySelector("input").focus(); });
   form.addEventListener("submit", createTask);
   root.append(toolbar, form);
+  if (!assignedHouses.length) root.append(messageBox("Dirección debe añadir el campo casasACargo a tu perfil antes de que publiques tareas."));
   const list = el("div", "task-list");
   root.append(list);
   try {
@@ -254,6 +287,7 @@ function studentTaskCard(task, delivery) {
     details.append(el("p", "", `${delivery.metodo === "whatsapp" ? "Entregada por WhatsApp" : "Foto enviada"} · ${formatDate(delivery.fechaEntrega)}${delivery.entregadaTarde ? " · Tarde" : ""}`));
     if (delivery.estado === "calificada") {
       details.append(el("div", "score", `${delivery.calificacion}/100`));
+      if (Number.isInteger(delivery.monedasOtorgadas)) details.append(el("p", "coins-earned", `+${delivery.monedasOtorgadas} monedas obtenidas`));
       if (delivery.comentario) details.append(el("p", "", `Comentario: ${delivery.comentario}`));
     }
     preview.append(evidence, details); box.append(preview); card.append(box);
@@ -324,12 +358,15 @@ async function renderStudentPanel() {
   root.append(toolbar);
   const list = el("div", "task-list"); root.append(list);
   if (!["A", "B", "S"].includes(profile.grado)) { list.append(messageBox("Tu perfil no tiene un grado válido. Dirección debe asignarte A, B o S.")); return; }
+  const studentHouse = String(profile.casa || "").replace(/^Casa\s+/i, "");
+  if (!VALID_HOUSES.includes(studentHouse)) { list.append(messageBox("Tu perfil no tiene una casa válida. Dirección debe asignarte una casa.")); return; }
   try {
     const [taskSnapshot, deliverySnapshot] = await Promise.all([
-      getDocs(query(collection(db, "tareas"), where("grado", "in", [profile.grado, "Todos"]))),
+      getDocs(query(collection(db, "tareas"), where("casasDestino", "array-contains", studentHouse))),
       getDocs(query(collection(db, "entregas"), where("alumnoId", "==", auth.currentUser.uid)))
     ]);
-    const tasks = taskSnapshot.docs.map(item => ({ id: item.id, ...item.data() })).sort(taskSort);
+    const tasks = taskSnapshot.docs.map(item => ({ id: item.id, ...item.data() }))
+      .filter(task => task.grado === profile.grado || task.grado === "Todos").sort(taskSort);
     const deliveries = new Map(deliverySnapshot.docs.map(item => [item.data().tareaId, { id: item.id, ...item.data() }]));
     if (!tasks.length) { list.append(emptyBox("No hay tareas publicadas para tu grado.")); return; }
     tasks.forEach(task => list.append(studentTaskCard(task, deliveries.get(task.id))));

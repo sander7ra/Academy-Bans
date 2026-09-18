@@ -1,9 +1,10 @@
 import { setPersistence, browserLocalPersistence, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { auth, db } from "./firebase-config.js";
-import { startRouter } from "./router.js";
+import { renderRoute, startRouter } from "./router.js";
 import { setTaskProfile } from "./tasks.js";
 import { setHouseProfile } from "./house.js";
+import { initEconomySession, setEconomyProfile } from "./economy.js";
 
 const $ = id => document.getElementById(id);
 const roleNames = { admin: "Administrador", profesor: "Profesor", alumno: "Alumno" };
@@ -31,6 +32,8 @@ async function showPortal(profile) {
   $("member-role").textContent = roleNames[profile.rol] || "Integrante";
   setTaskProfile(profile);
   setHouseProfile(profile);
+  setEconomyProfile(profile);
+  $("admin-requests-link").hidden = !(profile.esAdmin === true || profile.rol === "admin");
   const house = String(profile.casa || "").trim().replace(/^Casa\s+/i, "");
   $("house-nav-symbol").textContent = houseSymbols[house] || "♠";
   const photo = $("member-photo");
@@ -41,10 +44,12 @@ async function showPortal(profile) {
   $("login-message").textContent = "";
   $("login-screen").hidden = true;
   $("portal").hidden = false;
+  try { await initEconomySession(); }
+  catch (error) { console.error("No se pudo iniciar la economía:", error); }
   if (!routerStarted) {
     routerStarted = true;
     await startRouter();
-  }
+  } else await renderRoute(true);
 }
 
 const customBanner = new Image();
