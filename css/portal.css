@@ -42,14 +42,14 @@
 }
 
 .crest {
-    display: grid;
-    place-items: center;
-    width: 54px;
-    height: 54px;
-    border: 1px solid var(--gold);
+    overflow: hidden;
+}
+
+.crest img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
     border-radius: 50%;
-    color: var(--gold);
-    font-size: 2rem
 }
 
 .main-nav {
@@ -196,10 +196,25 @@
     gap: 28px
 }
 
-.house-page[data-house="concordia"] { --house-color: #c72635; --house-soft: #f7dfe2 }
-.house-page[data-house="divitiae"] { --house-color: #a87813; --house-soft: #f5e9c8 }
-.house-page[data-house="fatum"] { --house-color: #38784a; --house-soft: #dcecdf }
-.house-page[data-house="virtus"] { --house-color: #344d86; --house-soft: #e0e5f2 }
+.house-page[data-house="concordia"] {
+    --house-color: #c72635;
+    --house-soft: #f7dfe2
+}
+
+.house-page[data-house="divitiae"] {
+    --house-color: #a87813;
+    --house-soft: #f5e9c8
+}
+
+.house-page[data-house="fatum"] {
+    --house-color: #38784a;
+    --house-soft: #dcecdf
+}
+
+.house-page[data-house="virtus"] {
+    --house-color: #344d86;
+    --house-soft: #e0e5f2
+}
 
 .house-heading .ornament {
     color: #aa2029;

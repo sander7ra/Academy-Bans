@@ -1,4 +1,4 @@
-const CACHE = "academia-bans-v18";
+const CACHE = "academia-bans-v20";
 const ROOT = new URL("./", self.location.href);
 const FILES = [
   "./", "./index.html", "./css/global.css", "./css/login.css", "./css/portal.css", "./css/tasks.css", "./css/economy.css", "./css/community.css",
@@ -6,7 +6,7 @@ const FILES = [
   "./pages/home.html", "./pages/reglas.html", "./pages/lore.html", "./pages/ajustes.html", "./pages/casa.html", "./pages/calendario.html", "./pages/tareas.html", "./pages/tienda.html", "./pages/solicitudes.html", "./pages/alumnos.html", "./pages/reportes.html",
   "./assets/images/banner-placeholder.svg", "./assets/images/coin.png", "./assets/images/members/default-member.svg",
   "./assets/icons/icon-192.png", "./assets/icons/icon-512.png", "./assets/icons/icon-maskable-512.png", "./assets/icons/apple-touch-icon.png",
-  "./pwa/manifest.webmanifest", "./pwa/offline.html"
+  "./pwa/manifest.webmanifest", "./pwa/offline.html", "./assets/images/logo.png"
 ].map(path => new URL(path, ROOT).href);
 
 self.addEventListener("install", event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES))));
