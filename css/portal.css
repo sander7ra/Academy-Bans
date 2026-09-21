@@ -42,14 +42,14 @@
 }
 
 .crest {
-    overflow: hidden;
-}
-
-.crest img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+    display: grid;
+    place-items: center;
+    width: 54px;
+    height: 54px;
+    border: 1px solid var(--gold);
     border-radius: 50%;
+    color: var(--gold);
+    font-size: 2rem
 }
 
 .main-nav {
@@ -187,143 +187,6 @@
 .quick-links a.active {
     color: var(--gold);
     padding-left: .7rem
-}
-
-.house-page {
-    --house-color: #a9b4d7;
-    --house-soft: #e6e9f4;
-    display: grid;
-    gap: 28px
-}
-
-.house-page[data-house="concordia"] {
-    --house-color: #c72635;
-    --house-soft: #f7dfe2
-}
-
-.house-page[data-house="divitiae"] {
-    --house-color: #a87813;
-    --house-soft: #f5e9c8
-}
-
-.house-page[data-house="fatum"] {
-    --house-color: #38784a;
-    --house-soft: #dcecdf
-}
-
-.house-page[data-house="virtus"] {
-    --house-color: #344d86;
-    --house-soft: #e0e5f2
-}
-
-.house-heading .ornament {
-    color: #aa2029;
-    font-size: 2rem
-}
-
-.house-lore-card {
-    display: grid;
-    grid-template-columns: 130px 1fr;
-    align-items: center;
-    gap: 26px;
-    overflow: hidden;
-    padding: 28px;
-    border: 1px solid #d5bfc0;
-    border-radius: 22px;
-    background: linear-gradient(135deg, var(--house-soft), #fff 72%);
-    box-shadow: 0 16px 35px #4d111611
-}
-
-.house-great-symbol {
-    display: grid;
-    place-items: center;
-    width: 130px;
-    height: 130px;
-    border: 1px solid color-mix(in srgb, var(--house-color) 55%, white);
-    border-radius: 50%;
-    background: #fff9;
-    color: var(--house-color);
-    font: 600 5rem 'Cormorant Garamond', serif
-}
-
-.house-lore-card h2 {
-    margin: .15rem 0 .55rem;
-    color: var(--house-color);
-    font: 600 2rem 'Cormorant Garamond', serif
-}
-
-.house-lore-card p:last-child {
-    margin: 0;
-    line-height: 1.75
-}
-
-.house-members-heading {
-    display: flex;
-    justify-content: space-between;
-    align-items: end;
-    gap: 18px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #d8c4c5
-}
-
-.house-members-heading h2 {
-    margin: .1rem 0 0;
-    font: 600 2rem 'Cormorant Garamond', serif
-}
-
-.house-members-heading>span {
-    color: #7b6869;
-    font-size: .82rem
-}
-
-.house-members-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-    gap: 18px
-}
-
-.house-person {
-    padding: 20px 12px;
-    border: 1px solid #d7c4c5;
-    border-radius: 18px;
-    background: #fff;
-    text-align: center;
-    box-shadow: 0 10px 25px #4d11160d
-}
-
-.house-person img {
-    width: 94px;
-    height: 94px;
-    object-fit: cover;
-    object-position: center;
-    border: 3px solid #fff;
-    border-radius: 50%;
-    outline: 2px solid var(--house-color);
-    background: #eee
-}
-
-.house-person h3 {
-    margin: 13px 0 2px;
-    font: 600 1.35rem 'Cormorant Garamond', serif
-}
-
-.house-person p {
-    margin: 0;
-    color: #786667;
-    font-size: .8rem
-}
-
-.empty-house,
-.house-members-empty {
-    padding: 42px 20px;
-    border: 1px dashed #c7adaf;
-    border-radius: 18px;
-    text-align: center
-}
-
-.empty-house span {
-    color: #a31e27;
-    font-size: 3rem
 }
 
 .sidebar-button,
@@ -582,7 +445,7 @@
     .quick-links {
         grid-column: 1/-1;
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: 1fr 1fr;
         border-top: 1px solid #572125
     }
 
@@ -598,17 +461,6 @@
 
     .content-grid {
         grid-template-columns: 1fr
-    }
-
-    .house-lore-card {
-        grid-template-columns: 90px 1fr;
-        padding: 20px
-    }
-
-    .house-great-symbol {
-        width: 90px;
-        height: 90px;
-        font-size: 3.6rem
     }
 }
 
@@ -636,33 +488,5 @@
     .schedule {
         display: block;
         overflow-x: auto
-    }
-
-    .house-lore-card {
-        grid-template-columns: 1fr;
-        text-align: center
-    }
-
-    .house-great-symbol {
-        margin: auto
-    }
-
-    .house-members-heading {
-        align-items: flex-start;
-        flex-direction: column
-    }
-
-    .house-members-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px
-    }
-
-    .house-person {
-        padding: 16px 8px
-    }
-
-    .house-person img {
-        width: 76px;
-        height: 76px
     }
 }
