@@ -93,7 +93,7 @@ export async function getAcademicState(uid) {
 }
 
 export function watchOwnAcademicState(callback) {
-  if (!auth.currentUser || profile?.rol !== "alumno") return () => {};
+  if (!auth.currentUser || profile?.rol !== "alumno") return () => { };
   return onSnapshot(stateRef(), snapshot => {
     callback(snapshot.exists()
       ? normalizeAcademicState(snapshot.data(), snapshot.id)
@@ -127,7 +127,6 @@ export async function awardYellowCard(student) {
   await runTransaction(db, async transaction => {
     const ref = stateRef(studentId);
     const snapshot = await transaction.get(ref);
-    const reportSnapshot = reportRef ? await transaction.get(reportRef) : null;
     const current = snapshot.exists()
       ? normalizeAcademicState(snapshot.data(), studentId)
       : baseState(studentId);
@@ -179,6 +178,7 @@ export async function applyWarning(student, days, reportId = "") {
   await runTransaction(db, async transaction => {
     const ref = stateRef(studentId);
     const snapshot = await transaction.get(ref);
+    const reportSnapshot = reportRef ? await transaction.get(reportRef) : null;
     const current = snapshot.exists()
       ? normalizeAcademicState(snapshot.data(), studentId)
       : baseState(studentId);
