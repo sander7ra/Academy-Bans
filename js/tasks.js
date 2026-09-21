@@ -379,10 +379,20 @@ async function renderStudentPanel() {
   const studentHouse = String(profile.casa || "").replace(/^Casa\s+/i, "");
   if (!VALID_HOUSES.includes(studentHouse)) { list.append(messageBox("Tu perfil no tiene una casa válida. Dirección debe asignarte una casa.")); return; }
   try {
-    const [taskSnapshot, deliverySnapshot] = await Promise.all([
-      getDocs(query(collection(db, "tareas"), where("casasDestino", "array-contains", studentHouse))),
-      getDocs(query(collection(db, "entregas"), where("alumnoId", "==", auth.currentUser.uid)))
-    ]);
+    let taskSnapshot;
+    let deliverySnapshot;
+    try {
+      taskSnapshot = await getDocs(query(collection(db, "tareas"), where("casasDestino", "array-contains", studentHouse)));
+    } catch (error) {
+      console.error("Firestore rechazó la consulta de tareas:", error);
+      throw new Error("Firestore bloqueó la lectura de tareas. Revisa que las reglas v17 estén publicadas.");
+    }
+    try {
+      deliverySnapshot = await getDocs(query(collection(db, "entregas"), where("alumnoId", "==", auth.currentUser.uid)));
+    } catch (error) {
+      console.error("Firestore rechazó la consulta de entregas:", error);
+      throw new Error("Firestore bloqueó la lectura de tus entregas. Revisa que las reglas v17 estén publicadas.");
+    }
     const tasks = taskSnapshot.docs.map(item => ({ id: item.id, ...item.data() }))
       .filter(task => normalizeGrade(task.grado) === profileGrade || normalizeGrade(task.grado) === "Todos").sort(taskSort);
     const deliveries = new Map(deliverySnapshot.docs.map(item => [item.data().tareaId, { id: item.id, ...item.data() }]));
@@ -390,7 +400,7 @@ async function renderStudentPanel() {
     tasks.forEach(task => list.append(studentTaskCard(task, deliveries.get(task.id))));
   } catch (error) {
     console.error(error);
-    list.append(messageBox("No se pudieron cargar las tareas. Revisa tu conexión e inténtalo nuevamente."));
+    list.append(messageBox(error.message || "No se pudieron cargar las tareas."));
   }
 }
 
