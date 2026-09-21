@@ -55,13 +55,17 @@ service cloud.firestore {
         || grade in ["Todos", "todos", "Todos los grados", "Todos los rangos", "TODOS"];
     }
 
+    function canonicalHouse(house) {
+      return house == "Casa Concordia" ? "Concordia"
+        : house == "Casa Divitiae" ? "Divitiae"
+        : house == "Casa Fatum" ? "Fatum"
+        : house == "Casa Virtus" ? "Virtus"
+        : house;
+    }
+
     function targetsMyHouse(houses) {
-      return houses is list && (
-        (myProfile().casa in ["Concordia", "Casa Concordia"] && houses.hasAny(["Concordia", "Casa Concordia"]))
-        || (myProfile().casa in ["Divitiae", "Casa Divitiae"] && houses.hasAny(["Divitiae", "Casa Divitiae"]))
-        || (myProfile().casa in ["Fatum", "Casa Fatum"] && houses.hasAny(["Fatum", "Casa Fatum"]))
-        || (myProfile().casa in ["Virtus", "Casa Virtus"] && houses.hasAny(["Virtus", "Casa Virtus"]))
-      );
+      return houses is list
+        && houses.hasAny([canonicalHouse(myProfile().casa)]);
     }
 
     function rewardFor(grade, late) {

@@ -380,7 +380,7 @@ async function renderStudentPanel() {
   if (!VALID_HOUSES.includes(studentHouse)) { list.append(messageBox("Tu perfil no tiene una casa válida. Dirección debe asignarte una casa.")); return; }
   try {
     const [taskSnapshot, deliverySnapshot] = await Promise.all([
-      getDocs(query(collection(db, "tareas"), where("casasDestino", "array-contains-any", [studentHouse, `Casa ${studentHouse}`]))),
+      getDocs(query(collection(db, "tareas"), where("casasDestino", "array-contains", studentHouse))),
       getDocs(query(collection(db, "entregas"), where("alumnoId", "==", auth.currentUser.uid)))
     ]);
     const tasks = taskSnapshot.docs.map(item => ({ id: item.id, ...item.data() }))
