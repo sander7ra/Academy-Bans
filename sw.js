@@ -1,4 +1,4 @@
-const CACHE = "academia-bans-v21";
+const CACHE = "academia-bans-v23";
 const ROOT = new URL("./", self.location.href);
 const FILES = [
   "./", "./index.html", "./css/global.css", "./css/login.css", "./css/portal.css", "./css/tasks.css", "./css/economy.css", "./css/community.css",
