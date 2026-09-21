@@ -49,7 +49,7 @@ Los nombres deben estar en minúsculas. Si falta una foto, aparecerá el icono g
 
 ## Editar las páginas
 
-- `pages/home.html`: bienvenida y accesos.
+- `pages/home.html`: tablón general con publicaciones, respuestas y likes.
 - `pages/reglas.html`: reglas del team.
 - `pages/lore.html`: lore de Academia Bans.
 - `pages/calendario.html`: horario y examen de los viernes.
@@ -57,6 +57,8 @@ Los nombres deben estar en minúsculas. Si falta una foto, aparecerá el icono g
 - `pages/casa.html`: información e integrantes de la casa asignada.
 - `pages/tienda.html`: saldo, transferencias y beneficios canjeables.
 - `pages/solicitudes.html`: solicitudes de la tienda, visible solo para Dirección.
+- `pages/alumnos.html`: expedientes y ranking de las casas asignadas al profesor.
+- `pages/reportes.html`: publicaciones reportadas por alumnos estrella.
 - `pages/ajustes.html`: actualmente muestra “Próximamente”.
 
 ## Publicar en GitHub Pages
@@ -129,4 +131,21 @@ En cada documento privado de `usuarios` agrega el campo `casa` con uno de estos 
 - `Fatum` para Casa Fatum ♣
 - `Virtus` para Casa Virtus ♠
 
-Crea además un documento en `perfilesPublicos` con el mismo UID del usuario y solo estos campos: `usuario`, `nombre` y `casa`. Así los integrantes de la misma casa pueden verse sin exponer sus datos privados. La foto se toma de `assets/images/members/usuario-icon.png`.
+La app crea o sincroniza automáticamente un documento en `perfilesPublicos` con el mismo UID y los campos seguros `usuario`, `nombre`, `casa`, `grado` y `rol`. Así los rankings y los paneles de profesores pueden identificar correctamente a cada alumno sin exponer su perfil privado completo. La foto se toma de `assets/images/members/usuario-icon.png`.
+
+## Comunidad, disciplina y alumnos estrella
+
+El Home funciona como un tablón general. Alumnos y profesores pueden publicar texto, responder y dar like. Los alumnos estrella pueden reportar publicaciones hechas por alumnos, pero nunca publicaciones de profesores.
+
+Los profesores ven `Alumnos` y `Reportes` en lugar de `Casa` y `Calendario`. Solo pueden moderar alumnos pertenecientes a las casas incluidas en su campo `casasACargo`.
+
+- Cada tarjeta amarilla `🏷️` cuenta para alcanzar el rango de alumno estrella.
+- Con 5 tarjetas, el alumno obtiene `⭐` y permiso para reportar posts.
+- Si un alumno normal recibe una advertencia y tiene tarjetas, pierde una tarjeta y no recibe deuda.
+- Si un alumno estrella recibe una advertencia, pierde la estrella y todas sus tarjetas; esa medida no genera deuda.
+- Sin protección, una advertencia añade `🔖`, dura los días elegidos por el profesor y genera una deuda de 100 monedas.
+- Con 3 advertencias activas, el acceso queda suspendido hasta que expire la primera.
+
+Las recompensas de tareas pagan primero cualquier deuda. El alumno también puede abonar total o parcialmente desde la Tienda. Las colecciones `estadoAcademico`, `accionesDisciplina`, `publicaciones` y `reportesPosts` se crean automáticamente.
+
+Después de reemplazar el proyecto, publica también el nuevo archivo `firestore.rules`. Sin esas reglas, las funciones nuevas aparecerán en pantalla pero Firebase rechazará sus operaciones.

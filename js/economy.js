@@ -9,7 +9,8 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
-  updateDoc
+  updateDoc,
+  writeBatch
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { auth, db } from "./firebase-config.js";
 
@@ -120,18 +121,12 @@ async function ensureWallet() {
 
   if (snapshot.exists()) {
     const wallet = snapshot.data();
-
-    if (!wallet.ultimoCambioPerfil) {
-      await updateDoc(ref, {
-        ultimoCambioPerfil: epoch,
-        actualizadaEn: serverTimestamp()
-      });
-
-      return {
-        id: snapshot.id,
-        ...wallet,
-        ultimoCambioPerfil: epoch
-      };
+    const migration = {};
+    if (!wallet.ultimoCambioPerfil) migration.ultimoCambioPerfil = epoch;
+    if (!Number.isInteger(wallet.deuda)) migration.deuda = 0;
+    if (Object.keys(migration).length) {
+      await updateDoc(ref, { ...migration, actualizadaEn: serverTimestamp() });
+      return { id: snapshot.id, ...wallet, ...migration };
     }
 
     return {
@@ -142,6 +137,7 @@ async function ensureWallet() {
 
   await setDoc(ref, {
     saldo: 0,
+    deuda: 0,
     ultimaOperacion: "inicio",
     tipoOperacion: "inicio",
     ultimoCambioPersonaje: epoch,
@@ -157,6 +153,43 @@ async function ensureWallet() {
     id: created.id,
     ...created.data()
   };
+}
+
+async function payDebt(form, wallet, rerender) {
+  const status = form.querySelector(".modal-status");
+  const button = form.querySelector("button[type=submit]");
+  const amount = Number(new FormData(form).get("cantidad"));
+  if (!Number.isInteger(amount) || amount < 1) {
+    status.textContent = "Escribe una cantidad válida.";
+    return;
+  }
+  button.disabled = true;
+  status.textContent = "Registrando abono…";
+  try {
+    await runTransaction(db, async transaction => {
+      const ref = walletRef();
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists()) throw new Error("Tu monedero no está disponible.");
+      const current = snapshot.data();
+      const balance = Number(current.saldo || 0);
+      const debt = Number(current.deuda || 0);
+      if (amount > balance) throw new Error("No tienes suficientes monedas.");
+      if (amount > debt) throw new Error("El abono no puede superar tu deuda.");
+      transaction.update(ref, {
+        saldo: balance - amount,
+        deuda: debt - amount,
+        ultimaOperacion: `pago_${auth.currentUser.uid}_${Date.now()}`,
+        tipoOperacion: "pago_deuda",
+        actualizadaEn: serverTimestamp()
+      });
+    });
+    closeDialog(form.closest("dialog"));
+    await rerender(`Abonaste ${amount} monedas a tu deuda.`);
+  } catch (error) {
+    console.error(error);
+    status.textContent = error.message || "No se pudo registrar el abono.";
+    button.disabled = false;
+  }
 }
 
 async function refreshAdminCount() {
@@ -508,8 +541,10 @@ function requestStatusLabel(status) {
 }
 
 function myRequestMarkup(request) {
+  const resolved = request.estado !== "pendiente";
   return `
-    <article class="mini-request">
+    <article class="mini-request" data-id="${request.id}">
+      ${resolved ? `<label class="request-select"><input type="checkbox" value="${request.id}" aria-label="Seleccionar ${escapeHtml(request.productoNombre)}"> <span>Seleccionar</span></label>` : ""}
       <div>
         <strong>
           ${escapeHtml(request.productoNombre)}
@@ -572,6 +607,13 @@ export async function initStorePage(message = "") {
         </button>
       </div>
 
+      ${Number(wallet.deuda || 0) > 0 ? `
+        <section class="debt-card">
+          <div><p class="kicker">Cuenta pendiente</p><h2>Deuda: ${Number(wallet.deuda).toLocaleString("es-MX")} monedas</h2><p>Las recompensas de tareas pagarán primero esta deuda. También puedes abonarla con tu saldo actual.</p></div>
+          <button class="store-primary" id="open-debt-payment" type="button" ${Number(wallet.saldo || 0) < 1 ? "disabled" : ""}>Abonar deuda</button>
+        </section>
+      ` : ""}
+
       <div
         class="product-grid"
         id="product-grid"
@@ -583,6 +625,7 @@ export async function initStorePage(message = "") {
             <p class="kicker">Historial</p>
             <h2>Mis solicitudes</h2>
           </div>
+          <button class="store-secondary" id="delete-my-requests" type="button" ${requests.some(item => item.estado !== "pendiente") ? "" : "disabled"}>Borrar seleccionadas</button>
         </div>
 
         <div class="mini-request-list">
@@ -704,6 +747,18 @@ export async function initStorePage(message = "") {
         </button>
 
         <div id="purchase-dialog-content"></div>
+      </dialog>
+
+      <dialog class="economy-dialog" id="debt-dialog">
+        <button class="dialog-close" data-close-dialog type="button" aria-label="Cerrar">×</button>
+        <p class="kicker">Cuenta pendiente</p>
+        <h2>Abonar a tu deuda</h2>
+        <p>Debes ${Number(wallet.deuda || 0).toLocaleString("es-MX")} monedas y tienes ${Number(wallet.saldo || 0).toLocaleString("es-MX")} disponibles.</p>
+        <form class="economy-form" id="debt-form">
+          <label>Cantidad a pagar<input name="cantidad" type="number" min="1" max="${Math.min(Number(wallet.saldo || 0), Number(wallet.deuda || 0))}" value="${Math.min(Number(wallet.saldo || 0), Number(wallet.deuda || 0))}" step="1" required></label>
+          <p class="modal-status" role="status"></p>
+          <button class="store-primary" type="submit">Confirmar abono</button>
+        </form>
       </dialog>
     `;
 
@@ -925,6 +980,35 @@ export async function initStorePage(message = "") {
           initStorePage
         );
       });
+
+    const debtButton = root.querySelector("#open-debt-payment");
+    if (debtButton) {
+      debtButton.addEventListener("click", () => openDialog(root.querySelector("#debt-dialog")));
+      root.querySelector("#debt-form").addEventListener("submit", event => {
+        event.preventDefault();
+        payDebt(event.currentTarget, wallet, initStorePage);
+      });
+    }
+
+    root.querySelector("#delete-my-requests").addEventListener("click", async event => {
+      const ids = [...root.querySelectorAll(".request-select input:checked")].map(input => input.value);
+      if (!ids.length) {
+        alert("Selecciona al menos una solicitud aceptada o rechazada.");
+        return;
+      }
+      if (!confirm(`¿Borrar ${ids.length} solicitud${ids.length === 1 ? "" : "es"} del historial?`)) return;
+      event.currentTarget.disabled = true;
+      try {
+        const batch = writeBatch(db);
+        ids.forEach(id => batch.delete(doc(db, "solicitudesTienda", id)));
+        await batch.commit();
+        await initStorePage("Solicitudes eliminadas del historial.");
+      } catch (error) {
+        console.error(error);
+        event.currentTarget.disabled = false;
+        alert("No se pudieron borrar las solicitudes.");
+      }
+    });
   } catch (error) {
     console.error(error);
 
@@ -946,6 +1030,7 @@ function adminRequestMarkup(request) {
       class="admin-request-card"
       data-id="${request.id}"
     >
+      ${pending ? "" : `<label class="request-select"><input type="checkbox" value="${request.id}" aria-label="Seleccionar solicitud de ${escapeHtml(request.compradorNombre || "integrante")}"> <span>Seleccionar para borrar</span></label>`}
       <div class="admin-request-head">
         <div>
           <p class="kicker">
@@ -1187,6 +1272,11 @@ export async function initRequestsPage(
         <span>pendientes</span>
       </div>
 
+      <div class="resolved-cleaner">
+        <p>Selecciona solicitudes aceptadas o rechazadas para limpiar el historial.</p>
+        <button class="store-secondary" id="delete-admin-requests" type="button" ${requests.some(item => item.estado !== "pendiente") ? "" : "disabled"}>Borrar seleccionadas</button>
+      </div>
+
       <div class="admin-request-list">
         ${requests.length
         ? requests
@@ -1265,6 +1355,26 @@ export async function initRequestsPage(
             }
           );
       });
+
+    root.querySelector("#delete-admin-requests").addEventListener("click", async event => {
+      const ids = [...root.querySelectorAll(".request-select input:checked")].map(input => input.value);
+      if (!ids.length) {
+        alert("Selecciona al menos una solicitud resuelta.");
+        return;
+      }
+      if (!confirm(`¿Borrar definitivamente ${ids.length} solicitud${ids.length === 1 ? "" : "es"}?`)) return;
+      event.currentTarget.disabled = true;
+      try {
+        const batch = writeBatch(db);
+        ids.forEach(id => batch.delete(doc(db, "solicitudesTienda", id)));
+        await batch.commit();
+        await initRequestsPage("Solicitudes resueltas eliminadas.");
+      } catch (error) {
+        console.error(error);
+        event.currentTarget.disabled = false;
+        alert("No se pudieron borrar las solicitudes.");
+      }
+    });
   } catch (error) {
     console.error(error);
 

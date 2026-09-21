@@ -1,5 +1,6 @@
-import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import { collection, doc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+import { academicBadges, getAcademicState } from "./discipline.js";
 
 let profile = null;
 
@@ -50,10 +51,34 @@ function memberCard(member) {
   };
 
   const name = document.createElement("h3");
-  name.textContent = member.nombre || "Integrante";
+  const badges = academicBadges(member.state);
+  name.textContent = `${member.nombre || "Integrante"}${badges.star ? " ⭐" : ""}${badges.warnings ? ` ${"🔖".repeat(badges.warnings)}` : ""}`;
 
   card.append(image, name);
   return card;
+}
+
+function rankingRow(member, index) {
+  const row = document.createElement("div");
+  row.className = "ranking-row";
+  const place = document.createElement("span");
+  place.className = "ranking-place";
+  place.textContent = `#${index + 1}`;
+  const image = document.createElement("img");
+  image.className = "avatar small";
+  image.src = `./assets/images/members/${memberSlug(member.usuario)}-icon.png`;
+  image.alt = "";
+  image.onerror = () => { image.onerror = null; image.src = "./assets/images/members/default-member.svg"; };
+  const name = document.createElement("strong");
+  name.textContent = member.nombre || "Integrante";
+  const coins = document.createElement("span");
+  coins.className = "ranking-coins";
+  const icon = document.createElement("img");
+  icon.src = "./assets/images/coin.png";
+  icon.alt = "Monedas";
+  coins.append(icon, document.createTextNode(Number(member.saldo || 0).toLocaleString("es-MX")));
+  row.append(place, image, name, coins);
+  return row;
 }
 
 export async function initHousePage() {
@@ -77,17 +102,32 @@ export async function initHousePage() {
       <span class="house-great-symbol" aria-hidden="true">${house.symbol}</span>
       <div><p class="kicker">Lema de la casa</p><h2>${house.motto}</h2><p>${house.description}</p></div>
     </article>
+    <section class="ranking-panel"><p class="kicker">Popularidad</p><h2>Ranking de la casa</h2><div class="ranking-list" id="house-ranking-list"></div></section>
     <div class="house-members-heading"><div><p class="kicker">Compañeros</p><h2>Integrantes de la casa</h2></div><span id="house-members-count">Buscando…</span></div>
     <div class="house-members-grid" id="house-members-grid"></div>`;
 
   const grid = document.getElementById("house-members-grid");
   const count = document.getElementById("house-members-count");
+  const ranking = document.getElementById("house-ranking-list");
   try {
-    const snapshot = await getDocs(query(collection(db, "perfilesPublicos"), where("casa", "==", storedHouse)));
-    const members = snapshot.docs.map(item => item.data()).sort((a, b) => String(a.nombre || a.usuario || "").localeCompare(String(b.nombre || b.usuario || ""), "es"));
+    const snapshot = await getDocs(query(collection(db, "perfilesPublicos"), where("casa", "in", [houseName, `Casa ${houseName}`])));
+    const baseMembers = snapshot.docs.map(item => ({ id: item.id, ...item.data() })).filter(item => item.rol !== "profesor");
+    const members = await Promise.all(baseMembers.map(async member => {
+      const [wallet, state] = await Promise.all([
+        getDoc(doc(db, "monederos", member.id)),
+        getAcademicState(member.id)
+      ]);
+      return { ...member, saldo: wallet.exists() ? Number(wallet.data().saldo || 0) : 0, state };
+    }));
+    members.sort((a, b) => String(a.nombre || a.usuario || "").localeCompare(String(b.nombre || b.usuario || ""), "es"));
     members.forEach(member => grid.append(memberCard(member)));
+    [...members].sort((a, b) => b.saldo - a.saldo || String(a.nombre || "").localeCompare(String(b.nombre || ""), "es"))
+      .forEach((member, index) => ranking.append(rankingRow(member, index)));
     count.textContent = `${members.length} integrante${members.length === 1 ? "" : "s"}`;
-    if (!members.length) grid.innerHTML = '<p class="house-members-empty">Todavía no hay integrantes visibles en esta casa.</p>';
+    if (!members.length) {
+      grid.innerHTML = '<p class="house-members-empty">Todavía no hay integrantes visibles en esta casa.</p>';
+      ranking.innerHTML = '<p class="community-empty">Todavía no hay alumnos en el ranking.</p>';
+    }
   } catch (error) {
     console.error(error);
     count.textContent = "No disponible";

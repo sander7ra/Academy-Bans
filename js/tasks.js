@@ -32,6 +32,13 @@ function taskSort(a, b) {
   return (dateValue(b.creadaEn)?.getTime() || 0) - (dateValue(a.creadaEn)?.getTime() || 0);
 }
 
+function normalizeGrade(value) {
+  const grade = String(value || "").trim().toLowerCase().replace(/^grado\s+/, "");
+  if (["todos", "todos los grados", "todos los rangos", "todas", "all"].includes(grade)) return "Todos";
+  if (["a", "b", "s"].includes(grade)) return grade.toUpperCase();
+  return String(value || "").trim();
+}
+
 function messageBox(text) {
   return el("div", "task-error", text);
 }
@@ -45,7 +52,8 @@ function taskHeader(task) {
   const title = el("div");
   title.append(el("h3", "", task.titulo || "Tarea sin título"));
   const meta = el("div", "task-meta");
-  meta.append(el("span", "task-chip", `Grado ${task.grado}`));
+  const grade = normalizeGrade(task.grado);
+  meta.append(el("span", "task-chip", grade === "Todos" ? "Todos los grados" : `Grado ${grade}`));
   (Array.isArray(task.casasDestino) ? task.casasDestino : []).forEach(house => meta.append(el("span", "task-chip house", house)));
   meta.append(el("span", `task-chip${task.estado === "cerrada" ? " closed" : ""}`, task.estado === "cerrada" ? "Cerrada" : "Activa"));
   title.append(meta);
@@ -80,7 +88,7 @@ async function createTask(event) {
     await addDoc(collection(db, "tareas"), {
       titulo: String(data.get("titulo")).trim(),
       instrucciones: String(data.get("instrucciones")).trim(),
-      grado: String(data.get("grado")),
+      grado: normalizeGrade(data.get("grado")),
       casasDestino: targetHouses,
       fechaLimite: Timestamp.fromDate(dueDate),
       estado: "activa",
@@ -153,7 +161,8 @@ function teacherSubmission(submission) {
   body.append(el("p", "", `${submission.metodo === "whatsapp" ? "Entregada por WhatsApp" : "Foto subida"} · ${formatDate(submission.fechaEntrega)}${submission.entregadaTarde ? " · Tarde" : ""}`));
   if (submission.estado === "calificada") {
     body.append(el("div", "score", `${submission.calificacion}/100`));
-    if (Number.isInteger(submission.monedasOtorgadas)) body.append(el("p", "coins-earned", `${submission.monedasOtorgadas} monedas otorgadas`));
+    if (Number.isInteger(submission.monedasOtorgadas)) body.append(el("p", "coins-earned", `${submission.monedasOtorgadas} monedas generadas`));
+    if (Number(submission.monedasADueda || 0) > 0) body.append(el("p", "coins-earned", `${submission.monedasADueda} aplicadas a su deuda · ${Number(submission.monedasAlMonedero || 0)} al monedero`));
     if (submission.comentario) body.append(el("p", "", submission.comentario));
   } else {
     const form = el("form", "grade-form");
@@ -183,15 +192,22 @@ function teacherSubmission(submission) {
           const wallet = await transaction.get(studentWalletRef);
           if (!currentDelivery.exists() || currentDelivery.data().estado !== "pendiente") throw new Error("Esta entrega ya fue calificada.");
           if (!wallet.exists()) throw new Error("El alumno debe abrir la versión nueva de la app antes de recibir monedas.");
+          if (!Number.isInteger(wallet.data().deuda)) throw new Error("El alumno debe abrir la versión nueva de la app antes de recibir monedas.");
+          const debt = Number(wallet.data().deuda || 0);
+          const paidToDebt = Math.min(debt, reward);
+          const toWallet = reward - paidToDebt;
           transaction.update(deliveryRef, {
             calificacion: grade,
             comentario: comment.value.trim(),
             estado: "calificada",
             calificadaEn: serverTimestamp(),
-            monedasOtorgadas: reward
+            monedasOtorgadas: reward,
+            monedasADueda: paidToDebt,
+            monedasAlMonedero: toWallet
           });
           transaction.update(studentWalletRef, {
-            saldo: Number(wallet.data().saldo || 0) + reward,
+            saldo: Number(wallet.data().saldo || 0) + toWallet,
+            deuda: debt - paidToDebt,
             ultimaOperacion: submission.id,
             tipoOperacion: "calificacion",
             actualizadaEn: serverTimestamp()
@@ -287,7 +303,8 @@ function studentTaskCard(task, delivery) {
     details.append(el("p", "", `${delivery.metodo === "whatsapp" ? "Entregada por WhatsApp" : "Foto enviada"} · ${formatDate(delivery.fechaEntrega)}${delivery.entregadaTarde ? " · Tarde" : ""}`));
     if (delivery.estado === "calificada") {
       details.append(el("div", "score", `${delivery.calificacion}/100`));
-      if (Number.isInteger(delivery.monedasOtorgadas)) details.append(el("p", "coins-earned", `+${delivery.monedasOtorgadas} monedas obtenidas`));
+      if (Number.isInteger(delivery.monedasOtorgadas)) details.append(el("p", "coins-earned", `${delivery.monedasOtorgadas} monedas generadas`));
+      if (Number(delivery.monedasADueda || 0) > 0) details.append(el("p", "coins-earned", `${delivery.monedasADueda} pagaron tu deuda · ${Number(delivery.monedasAlMonedero || 0)} llegaron a tu monedero`));
       if (delivery.comentario) details.append(el("p", "", `Comentario: ${delivery.comentario}`));
     }
     preview.append(evidence, details); box.append(preview); card.append(box);
@@ -353,20 +370,21 @@ async function renderStudentPanel() {
   const root = document.getElementById("tasks-app");
   if (!root) return;
   root.replaceChildren();
+  const profileGrade = normalizeGrade(profile.grado);
   const toolbar = el("div", "tasks-toolbar");
-  toolbar.append(el("h2", "", `Tareas del grado ${profile.grado}`));
+  toolbar.append(el("h2", "", `Tareas del grado ${profileGrade}`));
   root.append(toolbar);
   const list = el("div", "task-list"); root.append(list);
-  if (!["A", "B", "S"].includes(profile.grado)) { list.append(messageBox("Tu perfil no tiene un grado válido. Dirección debe asignarte A, B o S.")); return; }
+  if (!["A", "B", "S"].includes(profileGrade)) { list.append(messageBox("Tu perfil no tiene un grado válido. Dirección debe asignarte A, B o S.")); return; }
   const studentHouse = String(profile.casa || "").replace(/^Casa\s+/i, "");
   if (!VALID_HOUSES.includes(studentHouse)) { list.append(messageBox("Tu perfil no tiene una casa válida. Dirección debe asignarte una casa.")); return; }
   try {
     const [taskSnapshot, deliverySnapshot] = await Promise.all([
-      getDocs(query(collection(db, "tareas"), where("casasDestino", "array-contains", studentHouse))),
+      getDocs(query(collection(db, "tareas"), where("casasDestino", "array-contains-any", [studentHouse, `Casa ${studentHouse}`]))),
       getDocs(query(collection(db, "entregas"), where("alumnoId", "==", auth.currentUser.uid)))
     ]);
     const tasks = taskSnapshot.docs.map(item => ({ id: item.id, ...item.data() }))
-      .filter(task => task.grado === profile.grado || task.grado === "Todos").sort(taskSort);
+      .filter(task => normalizeGrade(task.grado) === profileGrade || normalizeGrade(task.grado) === "Todos").sort(taskSort);
     const deliveries = new Map(deliverySnapshot.docs.map(item => [item.data().tareaId, { id: item.id, ...item.data() }]));
     if (!tasks.length) { list.append(emptyBox("No hay tareas publicadas para tu grado.")); return; }
     tasks.forEach(task => list.append(studentTaskCard(task, deliveries.get(task.id))));

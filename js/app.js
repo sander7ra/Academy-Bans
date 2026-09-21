@@ -8,13 +8,25 @@ import {
 
 import {
   doc,
-  getDoc
+  getDoc,
+  setDoc
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
 import { auth, db } from "./firebase-config.js";
-import { renderRoute, startRouter } from "./router.js";
+import { renderRoute, setRouterProfile, startRouter } from "./router.js";
 import { setTaskProfile } from "./tasks.js";
 import { setHouseProfile } from "./house.js";
+import { setCommunityProfile } from "./community.js";
+import { setStudentsProfile } from "./students.js";
+import { setReportsProfile } from "./reports.js";
+import {
+  academicBadges,
+  activeWarningDates,
+  ensureAcademicState,
+  getAcademicState,
+  setDisciplineProfile,
+  watchOwnAcademicState
+} from "./discipline.js";
 
 import {
   initEconomySession,
@@ -38,6 +50,8 @@ const houseSymbols = {
 
 let sessionCheck = 0;
 let routerStarted = false;
+let currentProfile = null;
+let stopStateWatch = null;
 
 function memberSlug(value) {
   return String(value || "integrante")
@@ -49,9 +63,30 @@ function memberSlug(value) {
 }
 
 function showLogin(message = "") {
+  stopStateWatch?.();
+  stopStateWatch = null;
   $("portal").hidden = true;
+  $("suspension-screen").hidden = true;
   $("login-screen").hidden = false;
   $("login-message").textContent = message;
+}
+
+function updateMemberBadges(state) {
+  const badges = academicBadges(state);
+  $("member-badges").textContent = `${badges.star ? " ⭐" : ""}${badges.warnings ? ` ${"🔖".repeat(badges.warnings)}` : ""}`;
+}
+
+function showSuspension(state) {
+  const warnings = activeWarningDates(state);
+  const until = warnings[0];
+  stopStateWatch?.();
+  stopStateWatch = null;
+  $("portal").hidden = true;
+  $("login-screen").hidden = true;
+  $("suspension-screen").hidden = false;
+  $("suspension-message").textContent = until
+    ? `Tienes tres advertencias activas. Podrás volver a entrar cuando la primera termine: ${until.toLocaleString("es-MX", { dateStyle: "long", timeStyle: "short" })}.`
+    : "Tienes tres advertencias activas. Contacta a un profesor para revisar tu situación.";
 }
 
 function setMemberPhoto(username, name) {
@@ -103,7 +138,19 @@ function setMemberBanner(username, name) {
   banner.src = personalBanner;
 }
 
+async function syncPublicProfile(profile) {
+  if (!auth.currentUser) return;
+  await setDoc(doc(db, "perfilesPublicos", auth.currentUser.uid), {
+    usuario: String(profile.usuario || ""),
+    nombre: String(profile.nombre || profile.usuario || "Integrante"),
+    casa: String(profile.casa || "").replace(/^Casa\s+/i, ""),
+    grado: String(profile.grado || ""),
+    rol: String(profile.rol || "alumno")
+  });
+}
+
 async function showPortal(profile) {
+  currentProfile = profile;
   const name = String(
     profile.nombre ||
     profile.usuario ||
@@ -126,6 +173,23 @@ async function showPortal(profile) {
   setTaskProfile(profile);
   setHouseProfile(profile);
   setEconomyProfile(profile);
+  setCommunityProfile(profile);
+  setStudentsProfile(profile);
+  setReportsProfile(profile);
+  setDisciplineProfile(profile);
+  setRouterProfile(profile);
+
+  const teacher = profile.rol === "profesor";
+  const student = profile.rol === "alumno";
+  $("house-link").hidden = !student;
+  $("calendar-link").hidden = !student;
+  $("students-link").hidden = !teacher;
+  $("reports-link").hidden = !teacher;
+
+  if (teacher) {
+    const houses = Array.isArray(profile.casasACargo) ? profile.casasACargo : [];
+    $("member-grade").textContent = houses.length ? houses.join(" · ") : "Sin casas asignadas";
+  }
 
   const admin =
     profile.esAdmin === true ||
@@ -147,7 +211,14 @@ async function showPortal(profile) {
   $("login-message").textContent = "";
 
   $("login-screen").hidden = true;
+  $("suspension-screen").hidden = true;
   $("portal").hidden = false;
+
+  try {
+    await syncPublicProfile(profile);
+  } catch (error) {
+    console.error("No se pudo sincronizar el perfil público:", error);
+  }
 
   try {
     await initEconomySession();
@@ -156,6 +227,23 @@ async function showPortal(profile) {
       "No se pudo iniciar la economía:",
       error
     );
+  }
+
+  stopStateWatch?.();
+  stopStateWatch = null;
+  if (student) {
+    const state = await ensureAcademicState(profile);
+    updateMemberBadges(state);
+    if (activeWarningDates(state).length >= 3) {
+      showSuspension(state);
+      return;
+    }
+    stopStateWatch = watchOwnAcademicState(nextState => {
+      updateMemberBadges(nextState);
+      if (activeWarningDates(nextState).length >= 3) showSuspension(nextState);
+    });
+  } else {
+    updateMemberBadges(null);
   }
 
   if (!routerStarted) {
@@ -236,6 +324,23 @@ $("login-form").addEventListener(
     }
   }
 );
+
+$("check-suspension").addEventListener("click", async () => {
+  if (!auth.currentUser || !currentProfile) return;
+  const button = $("check-suspension");
+  button.disabled = true;
+  button.textContent = "Comprobando…";
+  try {
+    const state = await getAcademicState(auth.currentUser.uid);
+    if (activeWarningDates(state).length >= 3) showSuspension(state);
+    else await showPortal(currentProfile);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Comprobar estado";
+  }
+});
+
+$("suspension-logout").addEventListener("click", () => signOut(auth));
 
 $("logout-button").addEventListener(
   "click",

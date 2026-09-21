@@ -1,13 +1,25 @@
 import { initTasksPage } from "./tasks.js";
 import { initHousePage } from "./house.js";
 import { initStorePage, initRequestsPage } from "./economy.js";
+import { initCommunityPage } from "./community.js";
+import { initStudentsPage } from "./students.js";
+import { initReportsPage } from "./reports.js";
 
-const routes = new Set(["home", "reglas", "lore", "ajustes", "casa", "calendario", "tareas", "tienda", "solicitudes"]);
+const routes = new Set(["home", "reglas", "lore", "ajustes", "casa", "calendario", "tareas", "tienda", "solicitudes", "alumnos", "reportes"]);
 let currentRoute = "";
+let profile = null;
+
+export function setRouterProfile(value) {
+  profile = value;
+}
 
 function routeFromHash() {
   const requested = location.hash.slice(1).toLowerCase();
-  return routes.has(requested) ? requested : "home";
+  if (!routes.has(requested)) return "home";
+  if (profile?.rol === "profesor" && ["casa", "calendario"].includes(requested)) return "home";
+  if (profile?.rol !== "profesor" && ["alumnos", "reportes"].includes(requested)) return "home";
+  if (requested === "solicitudes" && !(profile?.esAdmin === true || profile?.rol === "admin")) return "home";
+  return requested;
 }
 
 function setActiveLinks(route) {
@@ -22,6 +34,7 @@ function setActiveLinks(route) {
 export async function renderRoute(force = false) {
   const content = document.getElementById("page-content");
   const route = routeFromHash();
+  if (location.hash.slice(1).toLowerCase() !== route) history.replaceState(null, "", `#${route}`);
   if (!force && route === currentRoute) return;
   currentRoute = route;
   content.setAttribute("aria-busy", "true");
@@ -34,10 +47,13 @@ export async function renderRoute(force = false) {
     if (!response.ok) throw new Error(`No se encontró ${route}`);
     content.innerHTML = await response.text();
     content.querySelector("h1")?.focus({ preventScroll: true });
+    if (route === "home") await initCommunityPage();
     if (route === "tareas") await initTasksPage();
     if (route === "casa") await initHousePage();
     if (route === "tienda") await initStorePage();
     if (route === "solicitudes") await initRequestsPage();
+    if (route === "alumnos") await initStudentsPage();
+    if (route === "reportes") await initReportsPage();
   } catch {
     content.innerHTML = '<div class="soon"><span>✦</span><h1>No se pudo abrir</h1><p>Revisa tu conexión y vuelve a intentarlo.</p></div>';
   } finally {

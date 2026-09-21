@@ -171,6 +171,41 @@
   margin-top: 10px
 }
 
+.debt-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+  border: 1px solid #c74952;
+  border-radius: 16px;
+  background: linear-gradient(120deg, #f8dfe1, #fff5f2);
+  color: #681218
+}
+
+.debt-card h2,.debt-card p { margin: .15rem 0 }
+.debt-card h2 { font: 600 1.6rem 'Cormorant Garamond', serif }
+
+.request-select {
+  display: inline-flex !important;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 6px;
+  color: #796769;
+  font-size: .72rem
+}
+
+.request-select input { accent-color: #a51c25 }
+
+.resolved-cleaner {
+  padding: 13px 16px;
+  border: 1px solid #ddcdce;
+  border-radius: 14px;
+  background: #fff
+}
+
+.resolved-cleaner p { margin: 0;color: #756567;font-size: .82rem }
+
 .mini-request-list {
   display: grid;
   gap: 9px
@@ -409,7 +444,9 @@
   .product-footer,
   .store-toolbar,
   .mini-request,
-  .admin-request-head {
+  .admin-request-head,
+  .debt-card,
+  .resolved-cleaner {
     align-items: stretch;
     flex-direction: column
   }

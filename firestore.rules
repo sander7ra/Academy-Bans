@@ -26,16 +26,41 @@ service cloud.firestore {
       return loggedIn() && (myProfile().get("esAdmin", false) == true || myProfile().rol == "admin");
     }
 
+    function handlesHouse(house) {
+      return isTeacher() && myProfile().get("casasACargo", []) is list && (
+        (house in ["Concordia", "Casa Concordia"] && myProfile().get("casasACargo", []).hasAny(["Concordia"]))
+        || (house in ["Divitiae", "Casa Divitiae"] && myProfile().get("casasACargo", []).hasAny(["Divitiae"]))
+        || (house in ["Fatum", "Casa Fatum"] && myProfile().get("casasACargo", []).hasAny(["Fatum"]))
+        || (house in ["Virtus", "Casa Virtus"] && myProfile().get("casasACargo", []).hasAny(["Virtus"]))
+      );
+    }
+
+    function handlesStudent(uid) {
+      return handlesHouse(profileOf(uid).casa) && profileOf(uid).rol == "alumno";
+    }
+
     function taskData(taskId) {
       return get(/databases/$(database)/documents/tareas/$(taskId)).data;
     }
 
+    function publicationData(postId) {
+      return get(/databases/$(database)/documents/publicaciones/$(postId)).data;
+    }
+
+    function targetsMyGrade(grade) {
+      return grade == myProfile().grado
+        || (grade == "A" && myProfile().grado in ["A", "Grado A"])
+        || (grade == "B" && myProfile().grado in ["B", "Grado B"])
+        || (grade == "S" && myProfile().grado in ["S", "Grado S"])
+        || grade in ["Todos", "todos", "Todos los grados", "Todos los rangos", "TODOS"];
+    }
+
     function targetsMyHouse(houses) {
       return houses is list && (
-        (myProfile().casa in ["Concordia", "Casa Concordia"] && houses.hasAny(["Concordia"]))
-        || (myProfile().casa in ["Divitiae", "Casa Divitiae"] && houses.hasAny(["Divitiae"]))
-        || (myProfile().casa in ["Fatum", "Casa Fatum"] && houses.hasAny(["Fatum"]))
-        || (myProfile().casa in ["Virtus", "Casa Virtus"] && houses.hasAny(["Virtus"]))
+        (myProfile().casa in ["Concordia", "Casa Concordia"] && houses.hasAny(["Concordia", "Casa Concordia"]))
+        || (myProfile().casa in ["Divitiae", "Casa Divitiae"] && houses.hasAny(["Divitiae", "Casa Divitiae"]))
+        || (myProfile().casa in ["Fatum", "Casa Fatum"] && houses.hasAny(["Fatum", "Casa Fatum"]))
+        || (myProfile().casa in ["Virtus", "Casa Virtus"] && houses.hasAny(["Virtus", "Casa Virtus"]))
       );
     }
 
@@ -44,21 +69,28 @@ service cloud.firestore {
         + (late ? 0 : 5);
     }
 
+    function debtPart(reward, debt) {
+      return debt < reward ? debt : reward;
+    }
+
     function validWallet(data) {
       return data.keys().hasAll([
-          "saldo", "ultimaOperacion", "tipoOperacion", "ultimoCambioPersonaje",
-          "ultimoTestCasa", "creadaEn", "actualizadaEn"
+          "saldo", "deuda", "ultimaOperacion", "tipoOperacion", "ultimoCambioPersonaje",
+          "ultimoTestCasa", "ultimoCambioPerfil", "creadaEn", "actualizadaEn"
         ])
         && data.keys().hasOnly([
-          "saldo", "ultimaOperacion", "tipoOperacion", "ultimoCambioPersonaje",
-          "ultimoTestCasa", "creadaEn", "actualizadaEn"
+          "saldo", "deuda", "ultimaOperacion", "tipoOperacion", "ultimoCambioPersonaje",
+          "ultimoTestCasa", "ultimoCambioPerfil", "creadaEn", "actualizadaEn"
         ])
         && data.saldo is int
         && data.saldo >= 0
+        && data.deuda is int
+        && data.deuda >= 0
         && data.ultimaOperacion is string
         && data.tipoOperacion is string
         && data.ultimoCambioPersonaje is timestamp
         && data.ultimoTestCasa is timestamp
+        && data.ultimoCambioPerfil is timestamp
         && data.creadaEn is timestamp
         && data.actualizadaEn is timestamp;
     }
@@ -70,7 +102,17 @@ service cloud.firestore {
 
     match /perfilesPublicos/{uid} {
       allow read: if loggedIn();
-      allow write: if false;
+      allow create, update: if loggedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasAll(["usuario", "nombre", "casa", "grado", "rol"])
+        && request.resource.data.keys().hasOnly(["usuario", "nombre", "casa", "grado", "rol"])
+        && request.resource.data.usuario == myProfile().usuario
+        && request.resource.data.nombre == myProfile().get("nombre", myProfile().usuario)
+        && (request.resource.data.casa == myProfile().get("casa", "")
+          || "Casa " + request.resource.data.casa == myProfile().get("casa", ""))
+        && request.resource.data.grado == myProfile().get("grado", "")
+        && request.resource.data.rol == myProfile().rol;
+      allow delete: if false;
     }
 
     match /monederos/{uid} {
@@ -94,10 +136,30 @@ service cloud.firestore {
         return get(/databases/$(database)/documents/entregas/$(request.resource.data.ultimaOperacion)).data;
       }
 
+      function disciplineActionAfter() {
+        return getAfter(/databases/$(database)/documents/accionesDisciplina/$(request.resource.data.ultimaOperacion)).data;
+      }
+
       function commonWalletUpdate() {
         return validWallet(request.resource.data)
           && request.resource.data.creadaEn == resource.data.creadaEn
           && request.resource.data.actualizadaEn == request.time;
+      }
+
+      function walletMigration() {
+        return request.auth.uid == uid
+          && (!("ultimoCambioPerfil" in resource.data) || !("deuda" in resource.data))
+          && validWallet(request.resource.data)
+          && request.resource.data.deuda == resource.data.get("deuda", 0)
+          && (
+            (!("ultimoCambioPerfil" in resource.data) && request.resource.data.ultimoCambioPerfil <= request.time)
+            || (("ultimoCambioPerfil" in resource.data) && request.resource.data.ultimoCambioPerfil == resource.data.ultimoCambioPerfil)
+          )
+          && request.resource.data.creadaEn == resource.data.creadaEn
+          && request.resource.data.actualizadaEn == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "ultimoCambioPerfil", "deuda", "actualizadaEn"
+          ]);
       }
 
       function transferOut() {
@@ -164,7 +226,26 @@ service cloud.firestore {
           ]);
       }
 
+      function profileImagePurchase() {
+        return request.auth.uid == uid
+          && request.resource.data.tipoOperacion == "compra"
+          && request.resource.data.ultimaOperacion != resource.data.ultimaOperacion
+          && existsAfter(/databases/$(database)/documents/solicitudesTienda/$(request.resource.data.ultimaOperacion))
+          && requestAfter().compradorId == uid
+          && requestAfter().productoId == "cambio_imagen"
+          && requestAfter().costo == 50
+          && requestAfter().cooldownAnterior == resource.data.ultimoCambioPerfil
+          && request.resource.data.saldo == resource.data.saldo - 50
+          && request.resource.data.ultimoCambioPerfil == request.time
+          && request.time >= resource.data.ultimoCambioPerfil + duration.value(3, "d")
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "saldo", "ultimoCambioPerfil", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+          ]);
+      }
+
       function gradeReward() {
+        let reward = deliveryAfter().monedasOtorgadas;
+        let toDebt = debtPart(reward, resource.data.deuda);
         return isTeacher()
           && request.resource.data.tipoOperacion == "calificacion"
           && existsAfter(/databases/$(database)/documents/entregas/$(request.resource.data.ultimaOperacion))
@@ -173,9 +254,40 @@ service cloud.firestore {
           && deliveryAfter().alumnoId == uid
           && deliveryAfter().profesorId == request.auth.uid
           && deliveryAfter().monedasOtorgadas == rewardFor(deliveryAfter().calificacion, deliveryAfter().entregadaTarde)
-          && request.resource.data.saldo == resource.data.saldo + deliveryAfter().monedasOtorgadas
+          && deliveryAfter().monedasADueda == toDebt
+          && deliveryAfter().monedasAlMonedero == reward - toDebt
+          && request.resource.data.saldo == resource.data.saldo + deliveryAfter().monedasAlMonedero
+          && request.resource.data.deuda == resource.data.deuda - deliveryAfter().monedasADueda
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            "saldo", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+            "saldo", "deuda", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+          ]);
+      }
+
+      function warningDebt() {
+        return isTeacher()
+          && handlesStudent(uid)
+          && request.resource.data.tipoOperacion == "advertencia"
+          && existsAfter(/databases/$(database)/documents/accionesDisciplina/$(request.resource.data.ultimaOperacion))
+          && disciplineActionAfter().alumnoId == uid
+          && disciplineActionAfter().profesorId == request.auth.uid
+          && disciplineActionAfter().resultado == "advertencia_roja"
+          && request.resource.data.saldo == resource.data.saldo
+          && request.resource.data.deuda == resource.data.deuda + 100
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "deuda", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+          ]);
+      }
+
+      function debtPayment() {
+        let amount = resource.data.deuda - request.resource.data.deuda;
+        return request.auth.uid == uid
+          && request.resource.data.tipoOperacion == "pago_deuda"
+          && amount is int
+          && amount > 0
+          && request.resource.data.saldo == resource.data.saldo - amount
+          && request.resource.data.deuda >= 0
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "saldo", "deuda", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
           ]);
       }
 
@@ -213,6 +325,23 @@ service cloud.firestore {
           ]);
       }
 
+      function profileImageRefund() {
+        return isAdmin()
+          && request.resource.data.tipoOperacion == "reembolso"
+          && existsAfter(/databases/$(database)/documents/solicitudesTienda/$(request.resource.data.ultimaOperacion))
+          && requestBefore().estado == "pendiente"
+          && requestAfter().estado == "rechazada"
+          && requestAfter().reembolsada == true
+          && requestAfter().administradorId == request.auth.uid
+          && requestAfter().compradorId == uid
+          && requestAfter().productoId == "cambio_imagen"
+          && request.resource.data.saldo == resource.data.saldo + requestAfter().costo
+          && request.resource.data.ultimoCambioPerfil == requestAfter().cooldownAnterior
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "saldo", "ultimoCambioPerfil", "ultimaOperacion", "tipoOperacion", "actualizadaEn"
+          ]);
+      }
+
       allow get: if loggedIn();
       allow list: if isAdmin();
 
@@ -220,16 +349,22 @@ service cloud.firestore {
         && request.auth.uid == uid
         && validWallet(request.resource.data)
         && request.resource.data.saldo == 0
+        && request.resource.data.deuda == 0
         && request.resource.data.ultimaOperacion == "inicio"
         && request.resource.data.tipoOperacion == "inicio"
         && request.resource.data.ultimoCambioPersonaje <= request.time
         && request.resource.data.ultimoTestCasa <= request.time
+        && request.resource.data.ultimoCambioPerfil <= request.time
         && request.resource.data.creadaEn == request.time
         && request.resource.data.actualizadaEn == request.time;
 
-      allow update: if loggedIn() && commonWalletUpdate() && (
-        transferOut() || transferIn() || characterPurchase() || testPurchase()
-        || gradeReward() || characterRefund() || testRefund()
+      allow update: if loggedIn() && (
+        walletMigration()
+        || (commonWalletUpdate() && (
+          transferOut() || transferIn() || characterPurchase() || testPurchase() || profileImagePurchase()
+          || gradeReward() || characterRefund() || testRefund() || profileImageRefund()
+          || warningDebt() || debtPayment()
+        ))
       );
 
       allow delete: if false;
@@ -282,6 +417,11 @@ service cloud.firestore {
           && data.productoNombre == "Volver a hacer el test"
           && data.costo == 450
           && data.detalle == ""
+        ) || (
+          data.productoId == "cambio_imagen"
+          && data.productoNombre == "Cambio de foto/banner"
+          && data.costo == 50
+          && data.detalle in ["Foto de perfil", "Banner"]
         );
       }
 
@@ -334,7 +474,9 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/monederos/$(resource.data.compradorId)).data.tipoOperacion == "reembolso")
         );
 
-      allow delete: if false;
+      allow delete: if loggedIn()
+        && resource.data.estado in ["aceptada", "rechazada"]
+        && (resource.data.compradorId == request.auth.uid || isAdmin());
     }
 
     match /tareas/{taskId} {
@@ -391,7 +533,7 @@ service cloud.firestore {
     match /entregas/{deliveryId} {
       allow read: if loggedIn() && (
         resource.data.alumnoId == request.auth.uid
-        || (isTeacher() && resource.data.profesorId == request.auth.uid)
+        || (isTeacher() && (resource.data.profesorId == request.auth.uid || handlesStudent(resource.data.alumnoId)))
       );
 
       allow create: if isStudent()
@@ -400,7 +542,7 @@ service cloud.firestore {
         && request.resource.data.profesorId == taskData(request.resource.data.tareaId).profesorId
         && taskData(request.resource.data.tareaId).estado == "activa"
         && targetsMyHouse(taskData(request.resource.data.tareaId).casasDestino)
-        && (taskData(request.resource.data.tareaId).grado == myProfile().grado || taskData(request.resource.data.tareaId).grado == "Todos")
+        && targetsMyGrade(taskData(request.resource.data.tareaId).grado)
         && request.resource.data.metodo in ["foto", "whatsapp"]
         && request.resource.data.fotoUrl is string
         && request.resource.data.publicId is string
@@ -422,7 +564,8 @@ service cloud.firestore {
       allow update: if isTeacher()
         && resource.data.profesorId == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          "calificacion", "comentario", "estado", "calificadaEn", "monedasOtorgadas"
+          "calificacion", "comentario", "estado", "calificadaEn", "monedasOtorgadas",
+          "monedasADueda", "monedasAlMonedero"
         ])
         && request.resource.data.calificacion is int
         && request.resource.data.calificacion >= 1
@@ -433,10 +576,214 @@ service cloud.firestore {
         && request.resource.data.calificadaEn == request.time
         && request.resource.data.monedasOtorgadas
           == rewardFor(request.resource.data.calificacion, resource.data.entregadaTarde)
+        && request.resource.data.monedasADueda
+          == debtPart(request.resource.data.monedasOtorgadas, get(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.deuda)
+        && request.resource.data.monedasAlMonedero
+          == request.resource.data.monedasOtorgadas - request.resource.data.monedasADueda
         && getAfter(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.saldo
-          == get(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.saldo + request.resource.data.monedasOtorgadas
+          == get(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.saldo + request.resource.data.monedasAlMonedero
+        && getAfter(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.deuda
+          == get(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.deuda - request.resource.data.monedasADueda
         && getAfter(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.ultimaOperacion == deliveryId
         && getAfter(/databases/$(database)/documents/monederos/$(resource.data.alumnoId)).data.tipoOperacion == "calificacion";
+
+      allow delete: if false;
+    }
+
+    match /estadoAcademico/{uid} {
+      function validState(data) {
+        return data.keys().hasAll([
+          "tarjetasAmarillas", "esEstrella", "advertencias", "actualizadaEn"
+        ])
+        && data.keys().hasOnly([
+          "tarjetasAmarillas", "esEstrella", "advertencias", "actualizadaEn"
+        ])
+        && data.tarjetasAmarillas is int
+        && data.tarjetasAmarillas >= 0
+        && data.tarjetasAmarillas <= 5
+        && data.esEstrella is bool
+        && ((!data.esEstrella && data.tarjetasAmarillas <= 4) || (data.esEstrella && data.tarjetasAmarillas == 5))
+        && data.advertencias is list
+        && data.advertencias.size() <= 3
+        && data.actualizadaEn is timestamp;
+      }
+
+      allow read: if loggedIn();
+
+      allow create: if loggedIn() && validState(request.resource.data) && (
+        (request.auth.uid == uid
+          && isStudent()
+          && request.resource.data.tarjetasAmarillas == 0
+          && request.resource.data.esEstrella == false
+          && request.resource.data.advertencias.size() == 0
+          && request.resource.data.actualizadaEn == request.time)
+        || (isTeacher() && handlesStudent(uid))
+      );
+
+      allow update: if isTeacher()
+        && handlesStudent(uid)
+        && validState(request.resource.data)
+        && request.resource.data.actualizadaEn == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "tarjetasAmarillas", "esEstrella", "advertencias", "actualizadaEn"
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /accionesDisciplina/{actionId} {
+      allow read: if loggedIn() && (
+        resource.data.alumnoId == request.auth.uid
+        || (isTeacher() && handlesStudent(resource.data.alumnoId))
+        || isAdmin()
+      );
+
+      allow create: if isTeacher()
+        && handlesStudent(request.resource.data.alumnoId)
+        && request.resource.data.keys().hasAll([
+          "alumnoId", "alumnoNombre", "alumnoCasa", "profesorId", "profesorNombre",
+          "tipo", "resultado", "dias", "venceEn", "creadaEn"
+        ])
+        && request.resource.data.keys().hasOnly([
+          "alumnoId", "alumnoNombre", "alumnoCasa", "profesorId", "profesorNombre",
+          "tipo", "resultado", "dias", "venceEn", "creadaEn"
+        ])
+        && request.resource.data.profesorId == request.auth.uid
+        && request.resource.data.profesorNombre == myProfile().get("nombre", myProfile().usuario)
+        && (request.resource.data.alumnoCasa == profileOf(request.resource.data.alumnoId).casa
+          || "Casa " + request.resource.data.alumnoCasa == profileOf(request.resource.data.alumnoId).casa)
+        && request.resource.data.tipo in ["tarjeta_amarilla", "advertencia"]
+        && request.resource.data.resultado in [
+          "tarjeta_otorgada", "alumno_estrella", "tarjeta_consumida",
+          "estrella_retirada", "advertencia_roja"
+        ]
+        && request.resource.data.dias is int
+        && request.resource.data.dias >= 0
+        && request.resource.data.dias <= 365
+        && request.resource.data.creadaEn == request.time;
+
+      allow update, delete: if false;
+    }
+
+    match /publicaciones/{postId} {
+      allow read: if loggedIn();
+
+      allow create: if loggedIn()
+        && request.resource.data.keys().hasAll([
+          "autorId", "autorUsuario", "autorNombre", "autorRol", "autorCasa",
+          "autorGrado", "contenido", "creadaEn"
+        ])
+        && request.resource.data.keys().hasOnly([
+          "autorId", "autorUsuario", "autorNombre", "autorRol", "autorCasa",
+          "autorGrado", "contenido", "creadaEn"
+        ])
+        && request.resource.data.autorId == request.auth.uid
+        && request.resource.data.autorUsuario == myProfile().usuario
+        && request.resource.data.autorNombre == myProfile().get("nombre", myProfile().usuario)
+        && request.resource.data.autorRol == myProfile().rol
+        && (request.resource.data.autorCasa == myProfile().get("casa", "")
+          || "Casa " + request.resource.data.autorCasa == myProfile().get("casa", ""))
+        && request.resource.data.autorGrado == myProfile().get("grado", "")
+        && request.resource.data.contenido is string
+        && request.resource.data.contenido.size() > 0
+        && request.resource.data.contenido.size() <= 1200
+        && request.resource.data.creadaEn == request.time;
+
+      allow update: if false;
+      allow delete: if loggedIn() && resource.data.autorId == request.auth.uid;
+
+      match /likes/{uid} {
+        allow read: if loggedIn();
+        allow create: if loggedIn()
+          && exists(/databases/$(database)/documents/publicaciones/$(postId))
+          && uid == request.auth.uid
+          && request.resource.data.keys().hasAll(["usuarioId", "fecha"])
+          && request.resource.data.keys().hasOnly(["usuarioId", "fecha"])
+          && request.resource.data.usuarioId == request.auth.uid
+          && request.resource.data.fecha == request.time;
+        allow update: if false;
+        allow delete: if loggedIn() && uid == request.auth.uid;
+      }
+
+      match /respuestas/{replyId} {
+        allow read: if loggedIn();
+        allow create: if loggedIn()
+          && exists(/databases/$(database)/documents/publicaciones/$(postId))
+          && request.resource.data.keys().hasAll([
+            "autorId", "autorUsuario", "autorNombre", "autorRol", "autorCasa",
+            "autorGrado", "contenido", "creadaEn"
+          ])
+          && request.resource.data.keys().hasOnly([
+            "autorId", "autorUsuario", "autorNombre", "autorRol", "autorCasa",
+            "autorGrado", "contenido", "creadaEn"
+          ])
+          && request.resource.data.autorId == request.auth.uid
+          && request.resource.data.autorUsuario == myProfile().usuario
+          && request.resource.data.autorNombre == myProfile().get("nombre", myProfile().usuario)
+          && request.resource.data.autorRol == myProfile().rol
+          && (request.resource.data.autorCasa == myProfile().get("casa", "")
+            || "Casa " + request.resource.data.autorCasa == myProfile().get("casa", ""))
+          && request.resource.data.autorGrado == myProfile().get("grado", "")
+          && request.resource.data.contenido is string
+          && request.resource.data.contenido.size() > 0
+          && request.resource.data.contenido.size() <= 500
+          && request.resource.data.creadaEn == request.time;
+        allow update: if false;
+        allow delete: if loggedIn() && resource.data.autorId == request.auth.uid;
+      }
+    }
+
+    match /reportesPosts/{reportId} {
+      allow read: if loggedIn() && (
+        resource.data.reportadoPorId == request.auth.uid
+        || (isTeacher() && handlesHouse(resource.data.autorCasa))
+        || isAdmin()
+      );
+
+      allow create: if isStudent()
+        && get(/databases/$(database)/documents/estadoAcademico/$(request.auth.uid)).data.esEstrella == true
+        && request.resource.data.keys().hasAll([
+          "postId", "contenidoPost", "autorId", "autorUsuario", "autorNombre", "autorRol",
+          "autorCasa", "autorGrado", "reportadoPorId", "reportadoPorNombre", "estado",
+          "profesorId", "profesorNombre", "resultado", "creadaEn", "resueltaEn"
+        ])
+        && request.resource.data.keys().hasOnly([
+          "postId", "contenidoPost", "autorId", "autorUsuario", "autorNombre", "autorRol",
+          "autorCasa", "autorGrado", "reportadoPorId", "reportadoPorNombre", "estado",
+          "profesorId", "profesorNombre", "resultado", "creadaEn", "resueltaEn"
+        ])
+        && request.resource.data.postId is string
+        && reportId == request.resource.data.postId
+        && request.resource.data.autorId == publicationData(request.resource.data.postId).autorId
+        && request.resource.data.autorId != request.auth.uid
+        && request.resource.data.autorUsuario == publicationData(request.resource.data.postId).autorUsuario
+        && request.resource.data.autorNombre == publicationData(request.resource.data.postId).autorNombre
+        && request.resource.data.autorRol == "alumno"
+        && publicationData(request.resource.data.postId).autorRol == "alumno"
+        && request.resource.data.autorCasa == publicationData(request.resource.data.postId).autorCasa
+        && request.resource.data.autorGrado == publicationData(request.resource.data.postId).autorGrado
+        && request.resource.data.contenidoPost == publicationData(request.resource.data.postId).contenido
+        && request.resource.data.reportadoPorId == request.auth.uid
+        && request.resource.data.reportadoPorNombre == myProfile().get("nombre", myProfile().usuario)
+        && request.resource.data.estado == "pendiente"
+        && request.resource.data.profesorId == null
+        && request.resource.data.profesorNombre == ""
+        && request.resource.data.resultado == ""
+        && request.resource.data.creadaEn == request.time
+        && request.resource.data.resueltaEn == null;
+
+      allow update: if isTeacher()
+        && handlesHouse(resource.data.autorCasa)
+        && resource.data.estado == "pendiente"
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "estado", "profesorId", "profesorNombre", "resultado", "resueltaEn"
+        ])
+        && request.resource.data.estado in ["descartado", "advertencia"]
+        && request.resource.data.profesorId == request.auth.uid
+        && request.resource.data.profesorNombre == myProfile().get("nombre", myProfile().usuario)
+        && request.resource.data.resultado is string
+        && request.resource.data.resultado.size() > 0
+        && request.resource.data.resueltaEn == request.time;
 
       allow delete: if false;
     }
